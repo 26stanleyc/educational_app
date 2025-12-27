@@ -1,24 +1,24 @@
 """
-Algebra 1 Coach - Claude Agent SDK Educational Tutor
+Algebra 1 Coach - Educational Tutor
 
 A middle-school-friendly Algebra 1 tutoring agent that helps students build
 strong problem-solving habits through a 6-stage coaching flow.
 """
 
-import asyncio
+import os
 from dataclasses import dataclass, field
 from typing import Optional, List
 from enum import Enum
-from pathlib import Path
 
-# Claude Agent SDK imports
-from claude_agent_sdk import (
-    ClaudeSDKClient,
-    ClaudeAgentOptions,
-    AssistantMessage,
-    TextBlock,
-    ResultMessage
-)
+# Try to import Streamlit for secrets (when running in Streamlit Cloud)
+try:
+    import streamlit as st
+    STREAMLIT_AVAILABLE = True
+except ImportError:
+    STREAMLIT_AVAILABLE = False
+
+# Anthropic SDK
+from anthropic import Anthropic
 
 # PDF parsing
 try:
@@ -26,18 +26,28 @@ try:
     PDF_SUPPORT = True
 except ImportError:
     PDF_SUPPORT = False
-    print("Warning: PyMuPDF not installed. PDF support disabled.")
-    print("Install with: pip install pymupdf")
+
+
+def get_api_key():
+    """Get API key from Streamlit secrets or environment variable."""
+    # Try Streamlit secrets first (for Streamlit Cloud deployment)
+    if STREAMLIT_AVAILABLE:
+        try:
+            return st.secrets["ANTHROPIC_API_KEY"]
+        except:
+            pass
+    # Fall back to environment variable
+    return os.environ.get("ANTHROPIC_API_KEY")
 
 
 class TutoringStage(Enum):
     """Stages of the tutoring flow (0-5)."""
-    STAGE_0_SETUP = 0           # New problem setup
-    STAGE_1_FIRST_ATTEMPT = 1   # First attempt coaching (attempts 1-2)
-    STAGE_2_VALIDATION = 2      # Validate student's claimed answer
-    STAGE_3_DIAGNOSE = 3        # Diagnose & repair (attempts 3-4)
-    STAGE_4_FINAL_HINT = 4      # Final hint before reveal (attempt 5)
-    STAGE_5_REVEAL = 5          # Answer reveal
+    STAGE_0_SETUP = 0
+    STAGE_1_FIRST_ATTEMPT = 1
+    STAGE_2_VALIDATION = 2
+    STAGE_3_DIAGNOSE = 3
+    STAGE_4_FINAL_HINT = 4
+    STAGE_5_REVEAL = 5
 
 
 class ConfidenceLevel(Enum):
@@ -57,100 +67,14 @@ class TutoringState:
     confidence_signal: Optional[ConfidenceLevel] = None
     current_stage: TutoringStage = TutoringStage.STAGE_0_SETUP
     problem_id: Optional[str] = None
-    student_claimed_answer: bool = False  # True when student claims an answer
-    answer_validated: bool = False        # True after validation complete
-    problem_solved: bool = False          # True when correctly solved
+    student_claimed_answer: bool = False
+    answer_validated: bool = False
+    problem_solved: bool = False
     student_work_history: List[str] = field(default_factory=list)
 
 
-def extract_problems_from_pdf(pdf_path: str) -> List[dict]:
-    """
-    Extract problems from a PDF file.
-
-    Args:
-        pdf_path: Path to the PDF file
-
-    Returns:
-        List of dicts with 'id', 'text', and 'page' keys
-    """
-    if not PDF_SUPPORT:
-        raise ImportError("PyMuPDF not installed. Run: pip install pymupdf")
-
-    problems = []
-    doc = fitz.open(pdf_path)
-
-    for page_num, page in enumerate(doc, start=1):
-        text = page.get_text()
-
-        # Simple problem extraction - split by common patterns
-        # This can be customized based on the PDF format
-        lines = text.strip().split('\n')
-        current_problem = []
-        problem_count = 0
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # Detect problem start (customize for your PDF format)
-            # Common patterns: "1.", "1)", "Question 1", "Problem 1"
-            import re
-            problem_start = re.match(r'^(\d+)[.)\s]|^(Question|Problem)\s*\d+', line, re.IGNORECASE)
-
-            if problem_start and current_problem:
-                # Save previous problem
-                problem_count += 1
-                problems.append({
-                    'id': f"p{page_num}_{problem_count}",
-                    'text': '\n'.join(current_problem),
-                    'page': page_num
-                })
-                current_problem = [line]
-            else:
-                current_problem.append(line)
-
-        # Don't forget the last problem on the page
-        if current_problem:
-            problem_count += 1
-            problems.append({
-                'id': f"p{page_num}_{problem_count}",
-                'text': '\n'.join(current_problem),
-                'page': page_num
-            })
-
-    doc.close()
-    return problems
-
-
-def get_full_pdf_text(pdf_path: str) -> str:
-    """Extract all text from a PDF file."""
-    if not PDF_SUPPORT:
-        raise ImportError("PyMuPDF not installed. Run: pip install pymupdf")
-
-    doc = fitz.open(pdf_path)
-    full_text = ""
-
-    for page_num, page in enumerate(doc, start=1):
-        text = page.get_text()
-        full_text += f"\n--- Page {page_num} ---\n{text}"
-
-    doc.close()
-    return full_text.strip()
-
-
 class Algebra1Coach:
-    """
-    Middle-school-friendly Algebra 1 tutoring agent.
-
-    Uses 6-stage flow:
-    - Stage 0: New Problem Setup
-    - Stage 1: First Attempt Coaching
-    - Stage 2: Validation Path
-    - Stage 3: Diagnose & Repair
-    - Stage 4: Final Hint Before Reveal
-    - Stage 5: Answer Reveal
-    """
+    """Middle-school-friendly Algebra 1 tutoring agent."""
 
     SYSTEM_PROMPT_TEMPLATE = """You're like a favorite middle school math teacher—the kind who makes kids actually enjoy coming to class. You're here to help students figure things out themselves, not just give them answers.
 
@@ -248,9 +172,11 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
 - One thing at a time—don't overwhelm them"""
 
     def __init__(self):
-        self.client: Optional[ClaudeSDKClient] = None
+        api_key = get_api_key()
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY not found. Set it in Streamlit secrets or environment.")
+        self.client = Anthropic(api_key=api_key)
         self.state = TutoringState()
-        self.options: Optional[ClaudeAgentOptions] = None
 
     def _get_stage_name(self) -> str:
         """Get human-readable stage name."""
@@ -279,31 +205,6 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
             confidence=confidence_str
         )
 
-    async def initialize(self):
-        """Initialize the Claude Agent SDK client."""
-        self.options = ClaudeAgentOptions(
-            system_prompt=self._build_system_prompt(),
-            allowed_tools=[],
-            permission_mode="default"
-        )
-
-        self.client = ClaudeSDKClient(options=self.options)
-        await self.client.connect()
-
-    async def _update_system_prompt(self):
-        """Update the system prompt with new state."""
-        if self.client:
-            await self.client.disconnect()
-
-        self.options = ClaudeAgentOptions(
-            system_prompt=self._build_system_prompt(),
-            allowed_tools=[],
-            permission_mode="default"
-        )
-
-        self.client = ClaudeSDKClient(options=self.options)
-        await self.client.connect()
-
     def set_problem(self, problem: str, problem_id: Optional[str] = None):
         """Set a new problem and reset state."""
         self.state.problem = problem
@@ -316,127 +217,87 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
         self.state.problem_solved = False
         self.state.student_work_history = []
 
-    def set_student_profile(
-        self,
-        age_band: str = "middle school",
-        confidence: Optional[ConfidenceLevel] = None
-    ):
-        """Set student profile information."""
-        self.state.student_age_band = age_band
-        self.state.confidence_signal = confidence
-
     def force_reveal(self):
         """Force the coach to reveal the answer."""
         self.state.reveal_now = True
         self.state.current_stage = TutoringStage.STAGE_5_REVEAL
 
-    def mark_correct(self):
-        """Mark the current problem as correctly solved."""
-        self.state.problem_solved = True
-
     def _detect_answer_claim(self, message: str) -> bool:
         """Check if student is claiming an answer."""
         msg_lower = message.lower()
-
         answer_indicators = [
             "is the answer", "my answer", "i got", "the answer is",
             "i think it's", "it equals", "x =", "x=", "= ",
             "equals", "answer:", "final answer", "solution is",
             "it's ", "is it", "would it be", "i believe"
         ]
-
         return any(indicator in msg_lower for indicator in answer_indicators)
 
     def _determine_stage(self, student_message: str):
         """Determine the appropriate stage based on state and message."""
-        # Stage 5: Reveal (highest priority)
         if self.state.reveal_now or self.state.attempt_count >= 5:
             self.state.current_stage = TutoringStage.STAGE_5_REVEAL
             return
 
-        # Already solved - stay in Stage 5 for reflection
         if self.state.problem_solved:
             self.state.current_stage = TutoringStage.STAGE_5_REVEAL
             return
 
-        # Stage 0: New problem setup
         if self.state.attempt_count == 0:
             self.state.current_stage = TutoringStage.STAGE_0_SETUP
             return
 
-        # Stage 2: Validation (student claims answer)
         if self._detect_answer_claim(student_message) and not self.state.answer_validated:
             self.state.student_claimed_answer = True
             self.state.current_stage = TutoringStage.STAGE_2_VALIDATION
             return
 
-        # Stage 1: First attempts (1-2)
         if self.state.attempt_count in [1, 2]:
             self.state.current_stage = TutoringStage.STAGE_1_FIRST_ATTEMPT
             return
 
-        # Stage 3: Diagnose & Repair (3-4)
         if self.state.attempt_count in [3, 4]:
             self.state.current_stage = TutoringStage.STAGE_3_DIAGNOSE
             return
 
-        # Stage 4: Final hint (attempt 5, but not yet reveal)
         if self.state.attempt_count == 5:
             self.state.current_stage = TutoringStage.STAGE_4_FINAL_HINT
             return
 
-    async def respond(self, student_message: str) -> str:
-        """
-        Process student message and return coach response.
-
-        Args:
-            student_message: What the student just said/typed
-
-        Returns:
-            The coach's response string
-        """
-        # Track the student's work
+    def respond(self, student_message: str) -> str:
+        """Process student message and return coach response."""
         self.state.student_work_history.append(student_message)
 
-        # Increment attempt count when student makes a real attempt
-        # (not just asking questions or saying "hi")
         if self._is_substantive_attempt(student_message):
             if self.state.attempt_count == 0:
                 self.state.attempt_count = 1
-            elif not self._detect_answer_claim(student_message):
-                # Only increment if not an answer claim (those go to validation)
-                pass
 
-        # After validation, increment attempt if answer was wrong
         if self.state.current_stage == TutoringStage.STAGE_2_VALIDATION:
             if self.state.answer_validated and not self.state.problem_solved:
                 self.state.attempt_count += 1
                 self.state.answer_validated = False
                 self.state.student_claimed_answer = False
 
-        # Determine the appropriate stage
         self._determine_stage(student_message)
 
-        # Update system prompt with current state
-        await self._update_system_prompt()
+        query = f"""Current Stage: {self.state.current_stage.value} ({self._get_stage_name()})
+Attempt #{self.state.attempt_count}
+Reveal mode: {self.state.reveal_now}
+Student claimed answer: {self.state.student_claimed_answer}
 
-        # Build the query with context
-        query = self._build_query(student_message)
+Student said: "{student_message}"
 
-        # Send to Claude
-        await self.client.query(query)
+Respond as the Algebra 1 coach following the stage instructions exactly. Keep it brief."""
 
-        # Collect response
-        response_text = ""
-        async for message in self.client.receive_response():
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        response_text += block.text
-            elif isinstance(message, ResultMessage):
-                break
+        response = self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=500,
+            system=self._build_system_prompt(),
+            messages=[{"role": "user", "content": query}]
+        )
 
-        # Mark validation as complete if we were in Stage 2
+        response_text = response.content[0].text
+
         if self.state.current_stage == TutoringStage.STAGE_2_VALIDATION:
             self.state.answer_validated = True
 
@@ -445,8 +306,6 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
     def _is_substantive_attempt(self, message: str) -> bool:
         """Check if message is a substantive problem-solving attempt."""
         msg_lower = message.lower().strip()
-
-        # Not substantive: greetings, simple questions
         non_substantive = [
             "hi", "hello", "hey", "help", "?", "what", "how", "why",
             "i don't know", "idk", "i'm stuck", "confused"
@@ -455,7 +314,6 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
         if msg_lower in non_substantive or len(msg_lower) < 3:
             return False
 
-        # Substantive: contains math operations, numbers, or problem-solving language
         substantive_indicators = [
             "+", "-", "*", "/", "=", "x", "y",
             "first", "then", "so", "because", "if",
@@ -465,164 +323,6 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
 
         return any(ind in msg_lower for ind in substantive_indicators)
 
-    def _build_query(self, student_message: str) -> str:
-        """Build the query to send to Claude."""
-        return f"""Current Stage: {self.state.current_stage.value} ({self._get_stage_name()})
-Attempt #{self.state.attempt_count}
-Reveal mode: {self.state.reveal_now}
-Student claimed answer: {self.state.student_claimed_answer}
-
-Student said: "{student_message}"
-
-Respond as the Algebra 1 coach following the stage instructions exactly. Keep it brief."""
-
-    async def close(self):
-        """Close the client connection."""
-        if self.client:
-            await self.client.disconnect()
-
-    async def __aenter__(self):
-        await self.initialize()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
-
-
-# ============================================================================
-# CLI Interface
-# ============================================================================
-
-async def interactive_session():
-    """Run an interactive tutoring session."""
-    print("\n" + "="*60)
-    print("  Algebra 1 Coach - Interactive Session")
-    print("="*60)
-    print("\nCommands:")
-    print("  /problem <text>  - Set a new problem")
-    print("  /pdf <path>      - Load problems from PDF")
-    print("  /reveal          - Force reveal the answer")
-    print("  /correct         - Mark answer as correct")
-    print("  /status          - Show session state")
-    print("  /reset           - Reset the session")
-    print("  /quit            - Exit")
-    print("="*60 + "\n")
-
-    async with Algebra1Coach() as coach:
-        # Try to load from PDF if it exists
-        pdf_path = Path("regents_test.pdf")
-        if pdf_path.exists() and PDF_SUPPORT:
-            try:
-                full_text = get_full_pdf_text(str(pdf_path))
-                print(f"PDF loaded: {pdf_path}")
-                print(f"Preview: {full_text[:200]}...")
-                coach.set_problem(full_text, problem_id="regents_pdf")
-            except Exception as e:
-                print(f"Could not load PDF: {e}")
-                # Fall back to sample problem
-                sample = "Solve for x: 3x + 7 = 22"
-                coach.set_problem(sample, problem_id="sample_1")
-        else:
-            sample = "Solve for x: 3x + 7 = 22"
-            coach.set_problem(sample, problem_id="sample_1")
-            print(f"Sample problem loaded: {sample}")
-
-        print(f"\nProblem:\n{coach.state.problem[:500]}")
-
-        # Get initial Stage 0 response
-        initial = await coach.respond("I'm ready to start")
-        print(f"\nCoach: {initial}")
-
-        while True:
-            try:
-                user_input = input("\nYou: ").strip()
-
-                if not user_input:
-                    continue
-
-                # Handle commands
-                if user_input.startswith("/"):
-                    cmd_parts = user_input.split(maxsplit=1)
-                    cmd = cmd_parts[0].lower()
-                    arg = cmd_parts[1] if len(cmd_parts) > 1 else ""
-
-                    if cmd == "/quit":
-                        print("\nGreat work today! Keep practicing!")
-                        break
-
-                    elif cmd == "/problem":
-                        if arg:
-                            coach.set_problem(arg)
-                            print(f"\nNew problem set: {arg}")
-                            initial = await coach.respond("I'm ready to start")
-                            print(f"\nCoach: {initial}")
-                        else:
-                            print("Usage: /problem <problem text>")
-                        continue
-
-                    elif cmd == "/pdf":
-                        if not PDF_SUPPORT:
-                            print("PDF support not available. Install: pip install pymupdf")
-                            continue
-                        if arg:
-                            try:
-                                full_text = get_full_pdf_text(arg)
-                                coach.set_problem(full_text, problem_id=arg)
-                                print(f"\nPDF loaded: {arg}")
-                                print(f"Preview: {full_text[:300]}...")
-                                initial = await coach.respond("I'm ready to start")
-                                print(f"\nCoach: {initial}")
-                            except Exception as e:
-                                print(f"Error loading PDF: {e}")
-                        else:
-                            print("Usage: /pdf <path to pdf>")
-                        continue
-
-                    elif cmd == "/reveal":
-                        coach.force_reveal()
-                        response = await coach.respond("Please show me the answer")
-                        print(f"\nCoach: {response}")
-                        continue
-
-                    elif cmd == "/correct":
-                        coach.mark_correct()
-                        print("\nMarked as correct!")
-                        continue
-
-                    elif cmd == "/status":
-                        print(f"\nSession Status:")
-                        print(f"  Stage: {coach.state.current_stage.value} ({coach._get_stage_name()})")
-                        print(f"  Attempts: {coach.state.attempt_count}")
-                        print(f"  Claimed answer: {coach.state.student_claimed_answer}")
-                        print(f"  Solved: {coach.state.problem_solved}")
-                        print(f"  Reveal mode: {coach.state.reveal_now}")
-                        continue
-
-                    elif cmd == "/reset":
-                        coach.set_problem(coach.state.problem, problem_id=coach.state.problem_id)
-                        print("\nSession reset.")
-                        initial = await coach.respond("I'm ready to start")
-                        print(f"\nCoach: {initial}")
-                        continue
-
-                    else:
-                        print(f"Unknown command: {cmd}")
-                        continue
-
-                # Regular student message
-                response = await coach.respond(user_input)
-                print(f"\nCoach: {response}")
-
-            except KeyboardInterrupt:
-                print("\n\nSession ended. Keep up the great work!")
-                break
-            except Exception as e:
-                print(f"\nError: {e}")
-
-
-# ============================================================================
-# Programmatic API
-# ============================================================================
 
 async def process_turn(
     problem: str,
@@ -633,47 +333,18 @@ async def process_turn(
     confidence_signal: Optional[str] = None,
     problem_id: Optional[str] = None
 ) -> str:
-    """
-    Process a single tutoring turn - for API/integration use.
+    """Process a single tutoring turn."""
+    coach = Algebra1Coach()
+    coach.set_problem(problem, problem_id)
+    coach.state.attempt_count = attempt_count
+    coach.state.reveal_now = reveal_now
 
-    Args:
-        problem: The full problem text (or PDF content)
-        student_message: What the student just said/typed
-        attempt_count: Number of attempts (starts at 0)
-        reveal_now: If True, reveal the final answer
-        student_age_band: Student's age band
-        confidence_signal: "low", "med", or "high"
-        problem_id: Optional problem identifier
+    if confidence_signal:
+        coach.state.confidence_signal = ConfidenceLevel(confidence_signal)
 
-    Returns:
-        The coach's response string
-    """
-    async with Algebra1Coach() as coach:
-        coach.set_problem(problem, problem_id)
-        coach.state.attempt_count = attempt_count
-        coach.state.reveal_now = reveal_now
+    response = coach.respond(student_message)
+    return response
 
-        confidence = None
-        if confidence_signal:
-            confidence = ConfidenceLevel(confidence_signal)
-        coach.set_student_profile(student_age_band, confidence)
-
-        response = await coach.respond(student_message)
-        return response
-
-
-# ============================================================================
-# Main
-# ============================================================================
 
 if __name__ == "__main__":
-    print("\nStarting Algebra 1 Coach...")
-    print("Ensure ANTHROPIC_API_KEY is set.\n")
-
-    try:
-        asyncio.run(interactive_session())
-    except Exception as e:
-        print(f"\nError: {e}")
-        print("\nSetup:")
-        print("1. pip install claude-agent-sdk pymupdf")
-        print("2. export ANTHROPIC_API_KEY=your-key")
+    print("Algebra 1 Coach - Run with: streamlit run ui.py")
