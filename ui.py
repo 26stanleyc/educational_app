@@ -437,27 +437,43 @@ def is_correct_response(response: str) -> bool:
     """Check if the coach's response indicates the answer is correct."""
     response_lower = response.lower()
 
-    # Phrases that indicate a correct answer
-    correct_indicators = [
-        "correct", "that's right", "you got it", "exactly", "perfect",
-        "well done", "great job", "nailed it", "that works", "you're right",
-        "nice work", "good job", "that's correct", "right answer",
-        "absolutely", "precisely", "spot on", "bingo"
+    # Phrases that indicate the coach is asking for more info (NOT confirming correct)
+    asking_for_explanation = [
+        "walk me through", "how did you", "can you explain", "show me your",
+        "what steps", "how you got", "tell me more", "explain your",
+        "let's see your work", "walk through", "step-by-step", "step by step",
+        "can you walk", "let me see"
     ]
 
-    # Phrases that indicate incorrect (to avoid false positives)
+    # If asking for explanation, it's NOT a confirmation yet
+    for phrase in asking_for_explanation:
+        if phrase in response_lower:
+            return False
+
+    # Phrases that indicate incorrect answer
     incorrect_indicators = [
         "not quite", "not correct", "incorrect", "try again", "not right",
-        "that's not", "wrong", "close but", "almost", "not exactly"
+        "that's not", "wrong", "close but", "almost", "not exactly",
+        "let's think", "think about", "check your", "look again",
+        "careful", "watch out", "hmm", "are you sure"
     ]
 
-    # Check for incorrect indicators first (higher priority)
+    # Check for incorrect indicators
     for phrase in incorrect_indicators:
         if phrase in response_lower:
             return False
 
-    # Check for correct indicators
-    for phrase in correct_indicators:
+    # Strong phrases that DEFINITELY indicate correct answer
+    # These are more specific and less likely to be false positives
+    strong_correct_indicators = [
+        "that's correct", "is correct", "you're correct",
+        "that's the right answer", "the right answer",
+        "you got it", "you nailed it", "exactly right",
+        "you solved it", "problem solved", "well done!",
+        "great work!", "perfect!", "that's it!"
+    ]
+
+    for phrase in strong_correct_indicators:
         if phrase in response_lower:
             return True
 
