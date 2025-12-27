@@ -25,6 +25,7 @@ class Question:
     number: int
     text: str
     choices: List[str]
+    correct_answer: int = 1  # 1-indexed (1, 2, 3, or 4)
     has_graph: bool = False
     page: int = 1
     image_bytes: Optional[bytes] = None  # PNG image data for visual questions
@@ -109,6 +110,7 @@ Which property justifies her first step?""",
                 "(3) commutative property of multiplication",
                 "(4) distributive property of multiplication over subtraction"
             ],
+            "correct_answer": 4,
             "page": 2
         },
         {
@@ -120,6 +122,7 @@ Which property justifies her first step?""",
                 "(3) 2/3",
                 "(4) 4"
             ],
+            "correct_answer": 2,
             "page": 2
         },
         {
@@ -131,6 +134,7 @@ Which property justifies her first step?""",
                 "(3) (7x − 6)(7x + 6)",
                 "(4) (24.5x − 18)(24.5x + 18)"
             ],
+            "correct_answer": 3,
             "page": 2
         },
         {
@@ -142,6 +146,7 @@ Which property justifies her first step?""",
                 "(3) 27",
                 "(4) 33"
             ],
+            "correct_answer": 3,
             "page": 3
         },
         {
@@ -155,6 +160,7 @@ Over which interval does the helicopter have the slowest average rate of change?
                 "(3) 10 to 15 seconds",
                 "(4) 15 to 20 seconds"
             ],
+            "correct_answer": 3,
             "page": 3,
             "has_graph": True,
             "graph_rect": [0.1, 0.15, 0.9, 0.55]
@@ -169,6 +175,7 @@ If k is replaced by ½, which statement about these new functions is true?""",
                 "(3) The graphs of both f(x) and g(x) shift vertically.",
                 "(4) The graph of f(x) shifts left and the graph of g(x) becomes wider."
             ],
+            "correct_answer": 1,
             "page": 3
         },
         {
@@ -182,6 +189,7 @@ Which equation could represent P(x)?""",
                 "(3) P(x) = (x + 1)(x − 2)",
                 "(4) P(x) = (x − 1)(x + 2)"
             ],
+            "correct_answer": 1,
             "page": 4,
             "has_graph": True,
             "graph_rect": [0.1, 0.1, 0.9, 0.5]
@@ -195,6 +203,7 @@ Which equation could represent P(x)?""",
                 "(3) The shorter the time a car remains running, the less gasoline it will use.",
                 "(4) The slower the pace of a runner, the longer it will take the runner to finish the race."
             ],
+            "correct_answer": 2,
             "page": 4
         },
         {
@@ -211,6 +220,7 @@ III. The number of hours the job takes is represented by t.""",
                 "(3) II and III, only",
                 "(4) I, II, and III"
             ],
+            "correct_answer": 4,
             "page": 5
         },
         {
@@ -223,6 +233,7 @@ III. The number of hours the job takes is represented by t.""",
                 "(3) {−2, −1, 0, 1, 2, 4}",
                 "(4) {−2, −1, 0, 0, 1, 1, 1, 2, 4, 4}"
             ],
+            "correct_answer": 1,
             "page": 5
         }
     ]
@@ -240,6 +251,7 @@ III. The number of hours the job takes is represented by t.""",
             number=q_data["number"],
             text=q_data["text"],
             choices=q_data["choices"],
+            correct_answer=q_data.get("correct_answer", 1),
             has_graph=q_data.get("has_graph", False),
             page=q_data["page"],
             image_bytes=image_bytes
@@ -273,6 +285,7 @@ Which property justifies her first step?""",
                 "(3) commutative property of multiplication",
                 "(4) distributive property of multiplication over subtraction"
             ],
+            "correct_answer": 4,
             "page": 2
         },
         {
@@ -284,6 +297,7 @@ Which property justifies her first step?""",
                 "(3) 2/3",
                 "(4) 4"
             ],
+            "correct_answer": 2,
             "page": 2
         },
         {
@@ -295,6 +309,7 @@ Which property justifies her first step?""",
                 "(3) (7x − 6)(7x + 6)",
                 "(4) (24.5x − 18)(24.5x + 18)"
             ],
+            "correct_answer": 3,
             "page": 2
         },
         {
@@ -306,6 +321,7 @@ Which property justifies her first step?""",
                 "(3) 27",
                 "(4) 33"
             ],
+            "correct_answer": 3,
             "page": 3
         },
         {
@@ -319,10 +335,9 @@ Over which interval does the helicopter have the slowest average rate of change?
                 "(3) 10 to 15 seconds",
                 "(4) 15 to 20 seconds"
             ],
+            "correct_answer": 3,
             "page": 3,
             "has_graph": True,
-            # Crop rectangle as [x0, y0, x1, y1] percentages (0-1) of page
-            # Adjust these values to crop exactly around the graph
             "graph_rect": [0.1, 0.15, 0.9, 0.55]
         },
         {
@@ -335,6 +350,7 @@ If k is replaced by ½, which statement about these new functions is true?""",
                 "(3) The graphs of both f(x) and g(x) shift vertically.",
                 "(4) The graph of f(x) shifts left and the graph of g(x) becomes wider."
             ],
+            "correct_answer": 1,
             "page": 3
         },
         {
@@ -348,10 +364,9 @@ Which equation could represent P(x)?""",
                 "(3) P(x) = (x + 1)(x − 2)",
                 "(4) P(x) = (x − 1)(x + 2)"
             ],
+            "correct_answer": 1,
             "page": 4,
             "has_graph": True,
-            # Crop rectangle as [x0, y0, x1, y1] percentages (0-1) of page
-            # Adjust these values to crop exactly around the graph
             "graph_rect": [0.1, 0.1, 0.9, 0.5]
         },
         {
@@ -363,6 +378,7 @@ Which equation could represent P(x)?""",
                 "(3) The shorter the time a car remains running, the less gasoline it will use.",
                 "(4) The slower the pace of a runner, the longer it will take the runner to finish the race."
             ],
+            "correct_answer": 2,
             "page": 4
         },
         {
@@ -379,6 +395,7 @@ III. The number of hours the job takes is represented by t.""",
                 "(3) II and III, only",
                 "(4) I, II, and III"
             ],
+            "correct_answer": 4,
             "page": 5
         },
         {
@@ -391,6 +408,7 @@ III. The number of hours the job takes is represented by t.""",
                 "(3) {−2, −1, 0, 1, 2, 4}",
                 "(4) {−2, −1, 0, 0, 1, 1, 1, 2, 4, 4}"
             ],
+            "correct_answer": 1,
             "page": 5
         }
     ]
@@ -408,6 +426,7 @@ III. The number of hours the job takes is represented by t.""",
             number=q_data["number"],
             text=q_data["text"],
             choices=q_data["choices"],
+            correct_answer=q_data.get("correct_answer", 1),
             has_graph=q_data.get("has_graph", False),
             page=q_data["page"],
             image_bytes=image_bytes
@@ -431,6 +450,17 @@ def init_session_state():
         st.session_state.coach_initialized = False
     if "correct_questions" not in st.session_state:
         st.session_state.correct_questions = set()  # Track indices of correctly answered questions
+
+
+def get_selected_answer_number(selected_choice: str) -> int:
+    """Extract the answer number (1-4) from the selected choice string."""
+    # Choice format is like "(1) some text" or "(2) some text"
+    if selected_choice and selected_choice.startswith("("):
+        try:
+            return int(selected_choice[1])
+        except (ValueError, IndexError):
+            pass
+    return 0
 
 
 def is_correct_response(response: str) -> bool:
@@ -685,8 +715,9 @@ def main():
                     st.session_state.chat_history.append(("You", message))
                     st.session_state.chat_history.append(("Coach", response))
                     st.session_state.attempt_count += 1
-                    # Check if coach confirmed correct answer
-                    if is_correct_response(response):
+                    # Check if selected answer is correct (mark green immediately)
+                    selected_num = get_selected_answer_number(selected_choice)
+                    if selected_num == current_q.correct_answer:
                         st.session_state.correct_questions.add(st.session_state.current_question_idx)
                 st.rerun()
 
