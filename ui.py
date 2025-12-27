@@ -467,18 +467,19 @@ def is_correct_response(response: str) -> bool:
     """Check if the coach's response indicates the answer is correct."""
     response_lower = response.lower()
 
-    # Phrases that indicate the coach is asking for more info (NOT confirming correct)
-    asking_for_explanation = [
-        "walk me through", "how did you", "can you explain", "show me your",
-        "what steps", "how you got", "tell me more", "explain your",
-        "let's see your work", "walk through", "step-by-step", "step by step",
-        "can you walk", "let me see"
+    # Strong phrases that DEFINITELY indicate correct answer - check these FIRST
+    strong_correct_indicators = [
+        "that's correct", "is correct", "you're correct",
+        "that's the right answer", "the right answer",
+        "you got it", "you nailed it", "exactly right",
+        "you solved it", "problem solved", "well done",
+        "great work", "perfect", "nice work", "good job"
     ]
 
-    # If asking for explanation, it's NOT a confirmation yet
-    for phrase in asking_for_explanation:
+    # If coach confirms correct, mark as correct (even if also asking for explanation)
+    for phrase in strong_correct_indicators:
         if phrase in response_lower:
-            return False
+            return True
 
     # Phrases that indicate incorrect answer
     incorrect_indicators = [
@@ -492,20 +493,6 @@ def is_correct_response(response: str) -> bool:
     for phrase in incorrect_indicators:
         if phrase in response_lower:
             return False
-
-    # Strong phrases that DEFINITELY indicate correct answer
-    # These are more specific and less likely to be false positives
-    strong_correct_indicators = [
-        "that's correct", "is correct", "you're correct",
-        "that's the right answer", "the right answer",
-        "you got it", "you nailed it", "exactly right",
-        "you solved it", "problem solved", "well done!",
-        "great work!", "perfect!", "that's it!"
-    ]
-
-    for phrase in strong_correct_indicators:
-        if phrase in response_lower:
-            return True
 
     return False
 
