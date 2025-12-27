@@ -290,7 +290,7 @@ Student said: "{student_message}"
 Respond as the Algebra 1 coach following the stage instructions exactly. Keep it brief."""
 
         response = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-3-5-sonnet-20241022",
             max_tokens=500,
             system=self._build_system_prompt(),
             messages=[{"role": "user", "content": query}]
