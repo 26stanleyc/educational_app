@@ -715,9 +715,8 @@ def main():
                     st.session_state.chat_history.append(("You", message))
                     st.session_state.chat_history.append(("Coach", response))
                     st.session_state.attempt_count += 1
-                    # Check if selected answer is correct (mark green immediately)
-                    selected_num = get_selected_answer_number(selected_choice)
-                    if selected_num == current_q.correct_answer:
+                    # Check if coach confirmed correct answer
+                    if is_correct_response(response):
                         st.session_state.correct_questions.add(st.session_state.current_question_idx)
                 st.rerun()
 
