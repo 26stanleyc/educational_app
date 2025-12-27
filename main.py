@@ -61,6 +61,7 @@ class ConfidenceLevel(Enum):
 class TutoringState:
     """State variables for the tutoring session."""
     problem: str = ""
+    correct_answer: str = ""  # The correct answer for verification
     attempt_count: int = 0
     reveal_now: bool = False
     student_age_band: str = "middle school"
@@ -88,6 +89,9 @@ class Algebra1Coach:
 
 ## Current Problem
 {problem}
+
+## Answer Key (for verification only - don't reveal unless reveal_now=true)
+Correct answer: {correct_answer}
 
 ## Session State
 - Attempt count: {attempt_count}
@@ -200,6 +204,7 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
 
         return self.SYSTEM_PROMPT_TEMPLATE.format(
             problem=self.state.problem or "No problem loaded yet",
+            correct_answer=self.state.correct_answer or "Not provided",
             attempt_count=self.state.attempt_count,
             stage_num=self.state.current_stage.value,
             stage_name=self._get_stage_name(),
@@ -209,9 +214,10 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
             confidence=confidence_str
         )
 
-    def set_problem(self, problem: str, problem_id: Optional[str] = None):
+    def set_problem(self, problem: str, problem_id: Optional[str] = None, correct_answer: str = ""):
         """Set a new problem and reset state."""
         self.state.problem = problem
+        self.state.correct_answer = correct_answer
         self.state.problem_id = problem_id
         self.state.attempt_count = 0
         self.state.reveal_now = False
@@ -335,11 +341,12 @@ async def process_turn(
     reveal_now: bool = False,
     student_age_band: str = "middle school",
     confidence_signal: Optional[str] = None,
-    problem_id: Optional[str] = None
+    problem_id: Optional[str] = None,
+    correct_answer: str = ""
 ) -> str:
     """Process a single tutoring turn."""
     coach = Algebra1Coach()
-    coach.set_problem(problem, problem_id)
+    coach.set_problem(problem, problem_id, correct_answer=correct_answer)
     coach.state.attempt_count = attempt_count
     coach.state.reveal_now = reveal_now
 

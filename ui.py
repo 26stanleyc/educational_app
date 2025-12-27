@@ -520,12 +520,13 @@ def run_async(coro):
         loop.close()
 
 
-def get_coach_response(problem: str, message: str, attempt: int) -> str:
+def get_coach_response(problem: str, message: str, attempt: int, correct_answer: str = "") -> str:
     """Get response from the tutoring coach."""
     return run_async(process_turn(
         problem=problem,
         student_message=message,
-        attempt_count=attempt
+        attempt_count=attempt,
+        correct_answer=correct_answer
     ))
 
 
@@ -686,6 +687,9 @@ def main():
                 reveal_btn = st.button("Reveal Answer", use_container_width=True)
 
             # Handle button clicks
+            # Get the correct answer text for the coach
+            correct_answer_text = current_q.choices[current_q.correct_answer - 1] if current_q.correct_answer > 0 else ""
+
             if send_btn and user_input:
                 with st.spinner("Coach is thinking..."):
                     # Build problem text
@@ -693,7 +697,8 @@ def main():
                     response = get_coach_response(
                         problem_text,
                         user_input,
-                        st.session_state.attempt_count
+                        st.session_state.attempt_count,
+                        correct_answer=correct_answer_text
                     )
                     st.session_state.chat_history.append(("You", user_input))
                     st.session_state.chat_history.append(("Coach", response))
@@ -710,7 +715,8 @@ def main():
                     response = get_coach_response(
                         problem_text,
                         message,
-                        st.session_state.attempt_count
+                        st.session_state.attempt_count,
+                        correct_answer=correct_answer_text
                     )
                     st.session_state.chat_history.append(("You", message))
                     st.session_state.chat_history.append(("Coach", response))
@@ -723,16 +729,12 @@ def main():
             if reveal_btn:
                 with st.spinner("Getting the answer..."):
                     problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
-                    response = get_coach_response(
-                        problem_text,
-                        "Please show me the answer",
-                        attempt_count=5,  # Force reveal
-                        reveal_now=True
-                    ) if False else run_async(process_turn(
+                    response = run_async(process_turn(
                         problem=problem_text,
                         student_message="Please show me the answer",
                         attempt_count=5,
-                        reveal_now=True
+                        reveal_now=True,
+                        correct_answer=correct_answer_text
                     ))
                     st.session_state.chat_history.append(("You", "Please reveal the answer"))
                     st.session_state.chat_history.append(("Coach", response))
@@ -751,7 +753,8 @@ def main():
                     if st.button("Start with Coach", key="start_btn"):
                         with st.spinner("Coach is ready..."):
                             problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
-                            response = get_coach_response(problem_text, "I'm ready to start", 0)
+                            correct_ans = current_q.choices[current_q.correct_answer - 1] if current_q.correct_answer > 0 else ""
+                            response = get_coach_response(problem_text, "I'm ready to start", 0, correct_answer=correct_ans)
                             st.session_state.chat_history.append(("Coach", response))
                         st.rerun()
                 else:
