@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: algebra-coach
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run ui.py --server.port=$PORT --server.address=0.0.0.0
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LLAMA_CLOUD_API_KEY
+        sync: false
+

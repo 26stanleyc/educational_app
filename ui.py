@@ -6,15 +6,14 @@ A basic web interface for the tutoring application.
 import streamlit as st
 import asyncio
 import re
-from typing import List, Dict, Optional
+from typing import List, Optional
 from dataclasses import dataclass
 
-# Import from main module
+# Import LlamaParse-based parser for text extraction
 try:
-    import fitz  # PyMuPDF
-    PDF_SUPPORT = True
+    from pdf_parser import parse_pdf_to_questions, ParsedQuestion as LlamaQuestion, LLAMAPARSE_AVAILABLE
 except ImportError:
-    PDF_SUPPORT = False
+    LLAMAPARSE_AVAILABLE = False
 
 from main import Algebra1Coach, process_turn
 
@@ -28,412 +27,49 @@ class Question:
     correct_answer: int = 1  # 1-indexed (1, 2, 3, or 4)
     has_graph: bool = False
     page: int = 1
-    image_bytes: Optional[bytes] = None  # PNG image data for visual questions
 
 
-def extract_page_image(doc, page_num: int, crop_rect: Optional[List[float]] = None, zoom: float = 2.0) -> Optional[bytes]:
-    """
-    Extract a portion of a PDF page as a PNG image.
+def parse_questions_from_uploaded_pdf(pdf_bytes: bytes, filename: str = "", use_llamaparse: bool = True) -> List[Question]:
+    """Parse questions from an uploaded PDF file.
 
     Args:
-        doc: PyMuPDF document
-        page_num: 1-indexed page number
-        crop_rect: Optional [x0, y0, x1, y1] as percentages (0-1) of page dimensions
-        zoom: Resolution multiplier
+        pdf_bytes: The PDF file bytes
+        filename: Original filename
+        use_llamaparse: Whether to use LlamaParse for automatic extraction
     """
+    if not LLAMAPARSE_AVAILABLE:
+        return []
+
+    if not use_llamaparse:
+        return []
+
     try:
-        page = doc[page_num - 1]  # 0-indexed
-        page_rect = page.rect
+        llama_questions, markdown = parse_pdf_to_questions(
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            use_claude=True
+        )
 
-        # Calculate clip rectangle if crop coordinates provided
-        clip = None
-        if crop_rect:
-            x0 = page_rect.width * crop_rect[0]
-            y0 = page_rect.height * crop_rect[1]
-            x1 = page_rect.width * crop_rect[2]
-            y1 = page_rect.height * crop_rect[3]
-            clip = fitz.Rect(x0, y0, x1, y1)
+        if not llama_questions:
+            return []
 
-        # Create a matrix for higher resolution
-        mat = fitz.Matrix(zoom, zoom)
-        pix = page.get_pixmap(matrix=mat, clip=clip)
-        return pix.tobytes("png")
-    except Exception as e:
-        print(f"Error extracting page image: {e}")
-        return None
+        questions = []
+        for lq in llama_questions:
+            questions.append(Question(
+                number=lq.number,
+                text=lq.text,
+                choices=lq.choices if lq.choices else ["This appears to be a free-response question."],
+                correct_answer=lq.correct_answer,
+                has_graph=lq.has_graph,
+                page=lq.page if lq.page > 0 else 1,
+            ))
 
-
-def parse_questions_from_uploaded_pdf(pdf_bytes: bytes, filename: str = "") -> List[Question]:
-    """Parse questions from an uploaded PDF file."""
-    if not PDF_SUPPORT:
-        return []
-
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-
-    # Use hardcoded data for regents_test.pdf
-    if "regents_test.pdf" in filename.lower():
-        questions = parse_regents_questions(doc)
-        doc.close()
         return questions
-
-    # For other PDFs: show each page with its image
-    questions = []
-    for page_num in range(len(doc)):
-        image_bytes = extract_page_image(doc, page_num + 1)
-        questions.append(Question(
-            number=page_num + 1,
-            text=f"Work through the problems on this page with your coach.",
-            choices=["Ask me about any problem you see on this page!"],
-            has_graph=True,
-            page=page_num + 1,
-            image_bytes=image_bytes
-        ))
-
-    doc.close()
-    return questions
-
-
-def parse_regents_questions(doc) -> List[Question]:
-    """Parse the specific Regents exam with hardcoded accurate data."""
-    questions_data = [
-        {
-            "number": 1,
-            "text": """A part of Jennifer's work to solve the equation 2(6x² − 3) = 11x² − x is shown below.
-
-Given: 2(6x² − 3) = 11x² − x
-Step 1: 12x² − 6 = 11x² − x
-
-Which property justifies her first step?""",
-            "choices": [
-                "(1) identity property of multiplication",
-                "(2) multiplication property of equality",
-                "(3) commutative property of multiplication",
-                "(4) distributive property of multiplication over subtraction"
-            ],
-            "correct_answer": 4,
-            "page": 2
-        },
-        {
-            "number": 2,
-            "text": "Which value of x results in equal outputs for j(x) = 3x − 2 and b(x) = |x + 2|?",
-            "choices": [
-                "(1) −2",
-                "(2) 2",
-                "(3) 2/3",
-                "(4) 4"
-            ],
-            "correct_answer": 2,
-            "page": 2
-        },
-        {
-            "number": 3,
-            "text": "The expression 49x² − 36 is equivalent to",
-            "choices": [
-                "(1) (7x − 6)²",
-                "(2) (24.5x − 18)²",
-                "(3) (7x − 6)(7x + 6)",
-                "(4) (24.5x − 18)(24.5x + 18)"
-            ],
-            "correct_answer": 3,
-            "page": 2
-        },
-        {
-            "number": 4,
-            "text": "If f(x) = ½x² − (¼x + 3), what is the value of f(8)?",
-            "choices": [
-                "(1) 11",
-                "(2) 17",
-                "(3) 27",
-                "(4) 33"
-            ],
-            "correct_answer": 3,
-            "page": 3
-        },
-        {
-            "number": 5,
-            "text": """The graph below models the height of a remote-control helicopter over 20 seconds during flight.
-
-Over which interval does the helicopter have the slowest average rate of change?""",
-            "choices": [
-                "(1) 0 to 5 seconds",
-                "(2) 5 to 10 seconds",
-                "(3) 10 to 15 seconds",
-                "(4) 15 to 20 seconds"
-            ],
-            "correct_answer": 3,
-            "page": 3,
-            "has_graph": True,
-            "graph_rect": [0.1, 0.15, 0.9, 0.55]
-        },
-        {
-            "number": 6,
-            "text": """In the functions f(x) = kx² and g(x) = |kx|, k is a positive integer.
-If k is replaced by ½, which statement about these new functions is true?""",
-            "choices": [
-                "(1) The graphs of both f(x) and g(x) become wider.",
-                "(2) The graph of f(x) becomes narrower and the graph of g(x) shifts left.",
-                "(3) The graphs of both f(x) and g(x) shift vertically.",
-                "(4) The graph of f(x) shifts left and the graph of g(x) becomes wider."
-            ],
-            "correct_answer": 1,
-            "page": 3
-        },
-        {
-            "number": 7,
-            "text": """Wenona sketched the polynomial P(x) as shown on the axes below.
-
-Which equation could represent P(x)?""",
-            "choices": [
-                "(1) P(x) = (x + 1)(x − 2)²",
-                "(2) P(x) = (x − 1)(x + 2)²",
-                "(3) P(x) = (x + 1)(x − 2)",
-                "(4) P(x) = (x − 1)(x + 2)"
-            ],
-            "correct_answer": 1,
-            "page": 4,
-            "has_graph": True,
-            "graph_rect": [0.1, 0.1, 0.9, 0.5]
-        },
-        {
-            "number": 8,
-            "text": "Which situation does not describe a causal relationship?",
-            "choices": [
-                "(1) The higher the volume on a radio, the louder the sound will be.",
-                "(2) The faster a student types a research paper, the more pages the research paper will have.",
-                "(3) The shorter the time a car remains running, the less gasoline it will use.",
-                "(4) The slower the pace of a runner, the longer it will take the runner to finish the race."
-            ],
-            "correct_answer": 2,
-            "page": 4
-        },
-        {
-            "number": 9,
-            "text": """A plumber has a set fee for a house call and charges by the hour for repairs. The total cost of her services can be modeled by c(t) = 125t + 95.
-
-Which statements about this function are true?
-I. A house call fee costs $95.
-II. The plumber charges $125 per hour.
-III. The number of hours the job takes is represented by t.""",
-            "choices": [
-                "(1) I and II, only",
-                "(2) I and III, only",
-                "(3) II and III, only",
-                "(4) I, II, and III"
-            ],
-            "correct_answer": 4,
-            "page": 5
-        },
-        {
-            "number": 10,
-            "text": """What is the domain of the relation shown below?
-{(4,2), (1,1), (0,0), (1,−1), (4,−2)}""",
-            "choices": [
-                "(1) {0, 1, 4}",
-                "(2) {−2, −1, 0, 1, 2}",
-                "(3) {−2, −1, 0, 1, 2, 4}",
-                "(4) {−2, −1, 0, 0, 1, 1, 1, 2, 4, 4}"
-            ],
-            "correct_answer": 1,
-            "page": 5
-        }
-    ]
-
-    questions = []
-    for q_data in questions_data:
-        # Extract cropped image for questions with graphs
-        image_bytes = None
-        if q_data.get("has_graph", False):
-            page_num = q_data["page"]
-            crop_rect = q_data.get("graph_rect")
-            image_bytes = extract_page_image(doc, page_num, crop_rect=crop_rect)
-
-        questions.append(Question(
-            number=q_data["number"],
-            text=q_data["text"],
-            choices=q_data["choices"],
-            correct_answer=q_data.get("correct_answer", 1),
-            has_graph=q_data.get("has_graph", False),
-            page=q_data["page"],
-            image_bytes=image_bytes
-        ))
-
-    return questions
-
-
-def parse_questions_from_pdf(pdf_path: str) -> List[Question]:
-    """Parse individual questions from the Regents PDF."""
-    if not PDF_SUPPORT:
+    except Exception as e:
+        print(f"Exception during parsing: {e}")
+        import traceback
+        traceback.print_exc()
         return []
-
-    questions = []
-    doc = fitz.open(pdf_path)
-
-    # Manually define the questions from the PDF (parsed from content)
-    # This is more reliable than automatic parsing for structured exams
-    questions_data = [
-        {
-            "number": 1,
-            "text": """A part of Jennifer's work to solve the equation 2(6x² − 3) = 11x² − x is shown below.
-
-Given: 2(6x² − 3) = 11x² − x
-Step 1: 12x² − 6 = 11x² − x
-
-Which property justifies her first step?""",
-            "choices": [
-                "(1) identity property of multiplication",
-                "(2) multiplication property of equality",
-                "(3) commutative property of multiplication",
-                "(4) distributive property of multiplication over subtraction"
-            ],
-            "correct_answer": 4,
-            "page": 2
-        },
-        {
-            "number": 2,
-            "text": "Which value of x results in equal outputs for j(x) = 3x − 2 and b(x) = |x + 2|?",
-            "choices": [
-                "(1) −2",
-                "(2) 2",
-                "(3) 2/3",
-                "(4) 4"
-            ],
-            "correct_answer": 2,
-            "page": 2
-        },
-        {
-            "number": 3,
-            "text": "The expression 49x² − 36 is equivalent to",
-            "choices": [
-                "(1) (7x − 6)²",
-                "(2) (24.5x − 18)²",
-                "(3) (7x − 6)(7x + 6)",
-                "(4) (24.5x − 18)(24.5x + 18)"
-            ],
-            "correct_answer": 3,
-            "page": 2
-        },
-        {
-            "number": 4,
-            "text": "If f(x) = ½x² − (¼x + 3), what is the value of f(8)?",
-            "choices": [
-                "(1) 11",
-                "(2) 17",
-                "(3) 27",
-                "(4) 33"
-            ],
-            "correct_answer": 3,
-            "page": 3
-        },
-        {
-            "number": 5,
-            "text": """The graph below models the height of a remote-control helicopter over 20 seconds during flight.
-
-Over which interval does the helicopter have the slowest average rate of change?""",
-            "choices": [
-                "(1) 0 to 5 seconds",
-                "(2) 5 to 10 seconds",
-                "(3) 10 to 15 seconds",
-                "(4) 15 to 20 seconds"
-            ],
-            "correct_answer": 3,
-            "page": 3,
-            "has_graph": True,
-            "graph_rect": [0.1, 0.15, 0.9, 0.55]
-        },
-        {
-            "number": 6,
-            "text": """In the functions f(x) = kx² and g(x) = |kx|, k is a positive integer.
-If k is replaced by ½, which statement about these new functions is true?""",
-            "choices": [
-                "(1) The graphs of both f(x) and g(x) become wider.",
-                "(2) The graph of f(x) becomes narrower and the graph of g(x) shifts left.",
-                "(3) The graphs of both f(x) and g(x) shift vertically.",
-                "(4) The graph of f(x) shifts left and the graph of g(x) becomes wider."
-            ],
-            "correct_answer": 1,
-            "page": 3
-        },
-        {
-            "number": 7,
-            "text": """Wenona sketched the polynomial P(x) as shown on the axes below.
-
-Which equation could represent P(x)?""",
-            "choices": [
-                "(1) P(x) = (x + 1)(x − 2)²",
-                "(2) P(x) = (x − 1)(x + 2)²",
-                "(3) P(x) = (x + 1)(x − 2)",
-                "(4) P(x) = (x − 1)(x + 2)"
-            ],
-            "correct_answer": 1,
-            "page": 4,
-            "has_graph": True,
-            "graph_rect": [0.1, 0.1, 0.9, 0.5]
-        },
-        {
-            "number": 8,
-            "text": "Which situation does not describe a causal relationship?",
-            "choices": [
-                "(1) The higher the volume on a radio, the louder the sound will be.",
-                "(2) The faster a student types a research paper, the more pages the research paper will have.",
-                "(3) The shorter the time a car remains running, the less gasoline it will use.",
-                "(4) The slower the pace of a runner, the longer it will take the runner to finish the race."
-            ],
-            "correct_answer": 2,
-            "page": 4
-        },
-        {
-            "number": 9,
-            "text": """A plumber has a set fee for a house call and charges by the hour for repairs. The total cost of her services can be modeled by c(t) = 125t + 95.
-
-Which statements about this function are true?
-I. A house call fee costs $95.
-II. The plumber charges $125 per hour.
-III. The number of hours the job takes is represented by t.""",
-            "choices": [
-                "(1) I and II, only",
-                "(2) I and III, only",
-                "(3) II and III, only",
-                "(4) I, II, and III"
-            ],
-            "correct_answer": 4,
-            "page": 5
-        },
-        {
-            "number": 10,
-            "text": """What is the domain of the relation shown below?
-{(4,2), (1,1), (0,0), (1,−1), (4,−2)}""",
-            "choices": [
-                "(1) {0, 1, 4}",
-                "(2) {−2, −1, 0, 1, 2}",
-                "(3) {−2, −1, 0, 1, 2, 4}",
-                "(4) {−2, −1, 0, 0, 1, 1, 1, 2, 4, 4}"
-            ],
-            "correct_answer": 1,
-            "page": 5
-        }
-    ]
-
-    for q_data in questions_data:
-        # Extract cropped image for questions with graphs
-        image_bytes = None
-        if q_data.get("has_graph", False):
-            page_num = q_data["page"]
-            crop_rect = q_data.get("graph_rect")  # [x0, y0, x1, y1] as percentages
-            # Each graph gets its own cropped image (don't cache since crops differ)
-            image_bytes = extract_page_image(doc, page_num, crop_rect=crop_rect)
-
-        questions.append(Question(
-            number=q_data["number"],
-            text=q_data["text"],
-            choices=q_data["choices"],
-            correct_answer=q_data.get("correct_answer", 1),
-            has_graph=q_data.get("has_graph", False),
-            page=q_data["page"],
-            image_bytes=image_bytes
-        ))
-
-    doc.close()
-    return questions
 
 
 def init_session_state():
@@ -529,28 +165,50 @@ def main():
 
     # Header
     st.title("📐 Algebra 1 Coach")
-    st.markdown("*Your friendly middle-school algebra tutor*")
+    st.markdown("*Your algebra tutor!*")
 
     # Sidebar for navigation
     with st.sidebar:
         st.header("📚 Questions")
 
-        # Load Regents Exam button
-        if st.button("Load Regents Exam", type="primary"):
-            with st.spinner("Loading questions..."):
-                st.session_state.questions = parse_questions_from_pdf("regents_test.pdf")
-                st.session_state.current_question_idx = 0
-                st.session_state.chat_history = []
-                st.session_state.attempt_count = 0
-                # Don't reset correct_questions if already exists
-                if "correct_questions" not in st.session_state:
+        # Upload PDF
+        st.subheader("Upload Exam PDF")
+        uploaded_file = st.file_uploader(
+            "Upload a PDF exam",
+            type=["pdf"],
+            help="Upload any math exam PDF and we'll automatically extract the questions!"
+        )
+
+        if uploaded_file is not None:
+            use_ai_parsing = st.checkbox(
+                "Use AI parsing (LlamaParse)",
+                value=True,
+                help="Uses LlamaParse + Claude to automatically detect questions. Requires API keys."
+            )
+
+            if st.button("Parse PDF", type="primary"):
+                with st.spinner("Parsing PDF... This may take a moment for AI parsing."):
+                    pdf_bytes = uploaded_file.read()
+                    st.session_state.questions = parse_questions_from_uploaded_pdf(
+                        pdf_bytes,
+                        filename=uploaded_file.name,
+                        use_llamaparse=use_ai_parsing
+                    )
+                    st.session_state.current_question_idx = 0
+                    st.session_state.chat_history = []
+                    st.session_state.attempt_count = 0
                     st.session_state.correct_questions = set()
-            st.rerun()
+
+                if st.session_state.questions:
+                    st.success(f"Extracted {len(st.session_state.questions)} questions!")
+                else:
+                    st.error("Could not extract questions from this PDF.")
+                st.rerun()
+
+        st.divider()
 
         if st.session_state.questions:
             st.success(f"Loaded {len(st.session_state.questions)} questions!")
-
-        st.divider()
 
         # Question selector with progress
         if st.session_state.questions:
@@ -603,7 +261,7 @@ def main():
 
     # Main content area
     if not st.session_state.questions:
-        st.info("👈 Click **Load Regents Exam** in the sidebar to get started!")
+        st.info("👈 Upload a PDF exam in the sidebar to get started!")
 
         # Show sample question
         st.subheader("Or try a sample question:")
@@ -630,19 +288,12 @@ def main():
         with col1:
             st.subheader(f"Question {current_q.number}")
 
-            # Question text
+            # Question text on white background with black text
             st.markdown(f"""
-            <div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                <p style="font-size: 16px; line-height: 1.6; color: #1a1a1a;">{current_q.text.replace(chr(10), '<br>')}</p>
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <p style="font-size: 16px; line-height: 1.6; color: #000000;">{current_q.text.replace(chr(10), '<br>')}</p>
             </div>
             """, unsafe_allow_html=True)
-
-            # Display graph/visual if available
-            if current_q.has_graph and current_q.image_bytes:
-                st.image(current_q.image_bytes, caption=f"Visual from page {current_q.page}", use_container_width=True)
-            elif current_q.has_graph:
-                st.info("📊 This question includes a graph. Refer to page " +
-                       f"{current_q.page} of the exam for the visual.")
 
             # Answer choices
             st.markdown("**Answer Choices:**")
