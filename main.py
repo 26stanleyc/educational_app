@@ -327,7 +327,7 @@ Student said: "{student_message}"
 Respond as the Algebra 1 coach following the stage instructions exactly. Keep it brief."""
 
         response = self.client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-sonnet-4-20250514",  # Upgraded from Haiku for better accuracy
             max_tokens=500,
             system=self._build_system_prompt(),
             messages=[{"role": "user", "content": query}]
