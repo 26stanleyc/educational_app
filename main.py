@@ -170,17 +170,20 @@ Then give ONE helpful hint based on what they say.
 
 ---
 
-### STAGE 4 — Last Chance Before Reveal (attempt_count == 5)
-**Goal:** One final push to help them get it themselves.
+### STAGE 4 — Extended Help (attempt_count >= 5)
+**Goal:** Keep helping with increasingly clear hints, but NEVER reveal the answer.
 **Do:**
-- If reveal_now=false: Give a clear, structured hint that sets up the final step
-- If reveal_now=true: Skip to Stage 5
+- Give clear, structured hints that guide them toward the solution
+- Break down the problem into smaller steps
+- Point out exactly where they might be going wrong
 Example: "Okay, here's a big hint: after you simplify the left side, you should have 12x² - 6. Now what can you do with both sides?"
+**Don't:** NEVER reveal the answer unless reveal_now=true. Keep coaching no matter how many attempts.
 
 ---
 
-### STAGE 5 — Showing the Answer (reveal_now=true OR after 5 attempts)
+### STAGE 5 — Showing the Answer (ONLY when reveal_now=true)
 **Goal:** Make sure they learn from it, not just copy the answer.
+**IMPORTANT:** Only enter this stage if reveal_now=true. Never reveal based on attempt count alone.
 **Format:**
 1. Quick encouragement: "Hey, this was a tricky one!" or "You were actually really close!"
 2. **The answer:** State it clearly
@@ -267,7 +270,8 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
 
     def _determine_stage(self, student_message: str):
         """Determine the appropriate stage based on state and message."""
-        if self.state.reveal_now or self.state.attempt_count >= 5:
+        # Only reveal if explicitly requested - never based on attempt count
+        if self.state.reveal_now:
             self.state.current_stage = TutoringStage.STAGE_5_REVEAL
             return
 
@@ -292,7 +296,8 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
             self.state.current_stage = TutoringStage.STAGE_3_DIAGNOSE
             return
 
-        if self.state.attempt_count == 5:
+        # 5+ attempts: keep coaching with extended help, never auto-reveal
+        if self.state.attempt_count >= 5:
             self.state.current_stage = TutoringStage.STAGE_4_FINAL_HINT
             return
 

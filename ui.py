@@ -339,7 +339,10 @@ def main():
             with col_b:
                 submit_answer = st.button("Submit Answer", use_container_width=True)
             with col_c:
-                reveal_btn = st.button("Reveal Answer", use_container_width=True)
+                # Reveal button locked until 3 attempts
+                reveal_disabled = st.session_state.attempt_count < 3
+                reveal_label = "Reveal Answer" if not reveal_disabled else f"Reveal Answer ({3 - st.session_state.attempt_count} more attempts)"
+                reveal_btn = st.button(reveal_label, use_container_width=True, disabled=reveal_disabled)
 
             # Handle button clicks
             # Get the correct answer text for the coach
