@@ -72,10 +72,78 @@ def parse_questions_from_uploaded_pdf(pdf_bytes: bytes, filename: str = "", use_
         return []
 
 
+def get_sample_questions() -> List[Question]:
+    """Return hardcoded sample questions from Regents Algebra 1 exam."""
+    return [
+        Question(
+            number=1,
+            text="The owner of a small computer repair business has one employee, who is paid an hourly rate of $22. The owner estimates his weekly profit using the function P(x) = 8600 - 22x. In this function, x represents",
+            choices=[
+                "(1) the number of computers repaired per week",
+                "(2) the number of hours worked per week",
+                "(3) the employee's total weekly pay",
+                "(4) the total weekly profit"
+            ],
+            correct_answer=2,
+            page=1
+        ),
+        Question(
+            number=2,
+            text="What is the solution to 2 + 3(2a + 1) = 3(a + 2)?",
+            choices=[
+                "(1) 1/3",
+                "(2) -1/3",
+                "(3) 1",
+                "(4) -1"
+            ],
+            correct_answer=1,
+            page=1
+        ),
+        Question(
+            number=3,
+            text="If the difference (3x² - 2x + 5) - (x² + 3x - 2) is multiplied by ½x², what is the result, written in standard form?",
+            choices=[
+                "(1) 2x⁴ - 5x³ + 7x²",
+                "(2) x⁴ - 5/2x³ + 7/2x²",
+                "(3) x⁴ + 1/2x³ + 3/2x²",
+                "(4) x⁴ - 5x³ + 7x²"
+            ],
+            correct_answer=2,
+            page=1
+        ),
+        Question(
+            number=4,
+            text="Which expression is equivalent to (x + 4)² - (x + 4)?",
+            choices=[
+                "(1) x² + 7x + 12",
+                "(2) x² + 9x + 20",
+                "(3) x² + 7x + 20",
+                "(4) x² + 9x + 12"
+            ],
+            correct_answer=1,
+            page=1
+        ),
+        Question(
+            number=5,
+            text="The minimum value of the function f(x) = (x - 2)² + 4 is",
+            choices=[
+                "(1) -2",
+                "(2) 2",
+                "(3) -4",
+                "(4) 4"
+            ],
+            correct_answer=4,
+            page=1
+        ),
+    ]
+
+
 def init_session_state():
     """Initialize Streamlit session state variables."""
     if "questions" not in st.session_state:
-        st.session_state.questions = []
+        st.session_state.questions = get_sample_questions()  # Load sample questions by default
+    if "using_sample_questions" not in st.session_state:
+        st.session_state.using_sample_questions = True  # Track if using sample vs uploaded
     if "current_question_idx" not in st.session_state:
         st.session_state.current_question_idx = 0
     if "chat_history" not in st.session_state:
@@ -212,6 +280,7 @@ def main():
                         st.session_state.correct_questions = set()
                         st.session_state.answer_is_correct = False
                         st.session_state.awaiting_explanation = False
+                        st.session_state.using_sample_questions = False  # Mark as using uploaded questions
 
                     if st.session_state.questions:
                         st.success(f"Extracted {len(st.session_state.questions)} questions!")
@@ -221,14 +290,17 @@ def main():
 
         st.divider()
 
-        if st.session_state.questions:
-            st.success(f"Loaded {len(st.session_state.questions)} questions!")
-
         # Question selector with progress
         if st.session_state.questions:
             correct_count = len(st.session_state.correct_questions)
             total_count = len(st.session_state.questions)
-            st.subheader(f"Questions ({correct_count}/{total_count} ✓)")
+
+            # Show different header based on sample vs uploaded
+            if st.session_state.using_sample_questions:
+                st.subheader(f"📝 Sample Questions ({correct_count}/{total_count} ✓)")
+                st.caption("From Regents Algebra 1 Exam")
+            else:
+                st.subheader(f"📄 Your Questions ({correct_count}/{total_count} ✓)")
 
             for i, q in enumerate(st.session_state.questions):
                 is_correct = i in st.session_state.correct_questions
@@ -277,24 +349,7 @@ def main():
 
     # Main content area
     if not st.session_state.questions:
-        st.info("👈 Upload a PDF exam in the sidebar to get started!")
-
-        # Show sample question
-        st.subheader("Or try a sample question:")
-        sample_problem = "Solve for x: 3x + 7 = 22"
-        st.markdown(f"**{sample_problem}**")
-
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            sample_response = st.text_input("Your response:", key="sample_input",
-                                           placeholder="Type your answer or thinking here...")
-        with col2:
-            if st.button("Ask Coach", key="sample_btn"):
-                if sample_response:
-                    with st.spinner("Coach is thinking..."):
-                        result = get_coach_response(sample_problem, sample_response, 0)
-                        response = result["response"]
-                    st.markdown(f"**Coach:** {response}")
+        st.info("👈 Select a question from the sidebar to get started, or upload your own PDF exam!")
     else:
         # Display current question
         current_q = st.session_state.questions[st.session_state.current_question_idx]
