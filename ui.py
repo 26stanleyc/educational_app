@@ -262,8 +262,8 @@ Here's how you use it in 3 simple steps:
         if uploaded_file is not None:
             # Check file size (1.5 MB limit)
             file_size_mb = uploaded_file.size / (1024 * 1024)
-            if file_size_mb > 1.5:
-                st.error(f"File too large ({file_size_mb:.1f} MB). Please upload a file under 1.5 MB.")
+            if file_size_mb > 5:
+                st.error(f"File too large ({file_size_mb:.1f} MB). Please upload a file under 5 MB.")
             else:
                 use_ai_parsing = st.checkbox(
                     "Use AI parsing (May take a few minutes)",
