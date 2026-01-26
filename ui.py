@@ -251,19 +251,19 @@ Here's how you use it in 3 simple steps:
     with st.sidebar:
         st.header("📚 Questions")
 
-        # Upload PDF
-        st.subheader("Upload Exam PDF")
+        # Upload PDF or Image
+        st.subheader("Upload Exam")
         uploaded_file = st.file_uploader(
-            "Upload a PDF exam",
-            type=["pdf"],
-            help="Upload any math exam PDF and we'll automatically extract the questions!"
+            "Upload a PDF or image",
+            type=["pdf", "png", "jpg", "jpeg"],
+            help="Upload a PDF or photo of your exam and we'll automatically extract the questions!"
         )
 
         if uploaded_file is not None:
             # Check file size (1.5 MB limit)
             file_size_mb = uploaded_file.size / (1024 * 1024)
             if file_size_mb > 1.5:
-                st.error(f"File too large ({file_size_mb:.1f} MB). Please upload a PDF under 1.5 MB.")
+                st.error(f"File too large ({file_size_mb:.1f} MB). Please upload a file under 1.5 MB.")
             else:
                 use_ai_parsing = st.checkbox(
                     "Use AI parsing (May take a few minutes)",

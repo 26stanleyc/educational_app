@@ -93,9 +93,10 @@ def parse_pdf_with_llamaparse(pdf_path: str = None, pdf_bytes: bytes = None, fil
     )
 
     if pdf_bytes:
-        # Save bytes to temp file for parsing
+        # Save bytes to temp file for parsing - use actual file extension
         import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        file_ext = filename.split('.')[-1].lower() if '.' in filename else 'pdf'
+        with tempfile.NamedTemporaryFile(suffix=f".{file_ext}", delete=False) as tmp:
             tmp.write(pdf_bytes)
             tmp_path = tmp.name
         try:
