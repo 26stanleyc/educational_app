@@ -255,9 +255,10 @@ Here's how you use it in 3 simple steps:
         st.subheader("Upload Exam")
         uploaded_file = st.file_uploader(
             "Upload a PDF or image",
-            type=["pdf", "png", "jpg", "jpeg", "heic"],
+            type=["pdf", "png", "jpg", "jpeg"],
             help="Upload a PDF or photo of your exam and we'll automatically extract the questions!"
         )
+        st.caption("Accepted formats: PDF, PNG, JPG, JPEG")
 
         if uploaded_file is not None:
             # Check file size (1.5 MB limit)
