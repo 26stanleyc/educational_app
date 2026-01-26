@@ -71,6 +71,8 @@ class TutoringState:
     student_claimed_answer: bool = False
     answer_validated: bool = False
     problem_solved: bool = False
+    answer_is_correct: bool = False  # Track if student's answer was correct
+    awaiting_explanation: bool = False  # Track if we're waiting for explanation
     student_work_history: List[str] = field(default_factory=list)
 
 
@@ -98,6 +100,8 @@ Correct answer: {correct_answer}
 - Current stage: Stage {stage_num} ({stage_name})
 - Reveal answer now: {reveal_now}
 - Student claimed answer: {claimed_answer}
+- Answer is correct: {answer_is_correct}
+- Awaiting explanation: {awaiting_explanation}
 - Problem solved: {problem_solved}
 - Confidence level: {confidence}
 
@@ -128,7 +132,8 @@ Examples:
 
 ### STAGE 2 — They Think They've Got It (student claims an answer)
 **Goal:** Confirm if correct, then make sure they understand why.
-**Do:**
+
+**If awaiting_explanation=false (student just gave an answer):**
 1. First, evaluate if their answer is mathematically correct
 2. If their answer IS CORRECT:
    - Start with clear confirmation: "That's correct!" or "You got it!" or "Yes, that's right!"
@@ -137,7 +142,20 @@ Examples:
    - Don't say "correct" or confirm it
    - Give a gentle hint: "Hmm, not quite. Let's think about this..." or "Close! But check your work on..."
    - Guide them toward the right answer
+
+**If awaiting_explanation=true (student is explaining their correct answer):**
+1. Evaluate if their explanation shows understanding of the math
+2. If their explanation IS VALID (shows they understand the concept):
+   - Congratulate them enthusiastically: "Perfect! You nailed it!" or "Excellent work! You really understand this!"
+   - The problem is COMPLETE - do NOT ask for more explanation
+   - You can briefly reinforce what they did right
+3. If their explanation is WRONG or incomplete:
+   - Gently correct the misconception: "Hmm, not quite the right reasoning..."
+   - Ask them to think about it differently: "The answer is right, but can you explain WHY that works?"
+   - Keep asking until they show understanding
+
 **Don't:** Ask for explanation without first confirming if they're right or wrong.
+**Don't:** Keep asking for more explanation after they've correctly explained their reasoning.
 
 ---
 
@@ -210,6 +228,8 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
             stage_name=self._get_stage_name(),
             reveal_now=self.state.reveal_now,
             claimed_answer=self.state.student_claimed_answer,
+            answer_is_correct=self.state.answer_is_correct,
+            awaiting_explanation=self.state.awaiting_explanation,
             problem_solved=self.state.problem_solved,
             confidence=confidence_str
         )
@@ -225,6 +245,8 @@ Example: "Okay, here's a big hint: after you simplify the left side, you should 
         self.state.student_claimed_answer = False
         self.state.answer_validated = False
         self.state.problem_solved = False
+        self.state.answer_is_correct = False
+        self.state.awaiting_explanation = False
         self.state.student_work_history = []
 
     def force_reveal(self):
@@ -342,19 +364,29 @@ async def process_turn(
     student_age_band: str = "middle school",
     confidence_signal: Optional[str] = None,
     problem_id: Optional[str] = None,
-    correct_answer: str = ""
-) -> str:
-    """Process a single tutoring turn."""
+    correct_answer: str = "",
+    answer_is_correct: bool = False,
+    awaiting_explanation: bool = False
+) -> dict:
+    """Process a single tutoring turn. Returns dict with response and state."""
     coach = Algebra1Coach()
     coach.set_problem(problem, problem_id, correct_answer=correct_answer)
     coach.state.attempt_count = attempt_count
     coach.state.reveal_now = reveal_now
+    coach.state.answer_is_correct = answer_is_correct
+    coach.state.awaiting_explanation = awaiting_explanation
 
     if confidence_signal:
         coach.state.confidence_signal = ConfidenceLevel(confidence_signal)
 
     response = coach.respond(student_message)
-    return response
+
+    return {
+        "response": response,
+        "answer_is_correct": coach.state.answer_is_correct,
+        "awaiting_explanation": coach.state.awaiting_explanation,
+        "problem_solved": coach.state.problem_solved
+    }
 
 
 if __name__ == "__main__":

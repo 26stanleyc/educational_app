@@ -86,6 +86,10 @@ def init_session_state():
         st.session_state.coach_initialized = False
     if "correct_questions" not in st.session_state:
         st.session_state.correct_questions = set()  # Track indices of correctly answered questions
+    if "answer_is_correct" not in st.session_state:
+        st.session_state.answer_is_correct = False  # Track if current answer is correct
+    if "awaiting_explanation" not in st.session_state:
+        st.session_state.awaiting_explanation = False  # Track if waiting for explanation
 
 
 def get_selected_answer_number(selected_choice: str) -> int:
@@ -143,13 +147,16 @@ def run_async(coro):
         loop.close()
 
 
-def get_coach_response(problem: str, message: str, attempt: int, correct_answer: str = "") -> str:
-    """Get response from the tutoring coach."""
+def get_coach_response(problem: str, message: str, attempt: int, correct_answer: str = "",
+                       answer_is_correct: bool = False, awaiting_explanation: bool = False) -> dict:
+    """Get response from the tutoring coach. Returns dict with response and state."""
     return run_async(process_turn(
         problem=problem,
         student_message=message,
         attempt_count=attempt,
-        correct_answer=correct_answer
+        correct_answer=correct_answer,
+        answer_is_correct=answer_is_correct,
+        awaiting_explanation=awaiting_explanation
     ))
 
 
@@ -203,6 +210,8 @@ def main():
                         st.session_state.chat_history = []
                         st.session_state.attempt_count = 0
                         st.session_state.correct_questions = set()
+                        st.session_state.answer_is_correct = False
+                        st.session_state.awaiting_explanation = False
 
                     if st.session_state.questions:
                         st.success(f"Extracted {len(st.session_state.questions)} questions!")
@@ -248,6 +257,8 @@ def main():
                         st.session_state.current_question_idx = i
                         st.session_state.chat_history = []
                         st.session_state.attempt_count = 0
+                        st.session_state.answer_is_correct = False
+                        st.session_state.awaiting_explanation = False
                         st.rerun()
 
                 # Add green background to the row for correct questions
@@ -281,7 +292,8 @@ def main():
             if st.button("Ask Coach", key="sample_btn"):
                 if sample_response:
                     with st.spinner("Coach is thinking..."):
-                        response = get_coach_response(sample_problem, sample_response, 0)
+                        result = get_coach_response(sample_problem, sample_response, 0)
+                        response = result["response"]
                     st.markdown(f"**Coach:** {response}")
     else:
         # Display current question
@@ -337,48 +349,70 @@ def main():
                 with st.spinner("Coach is thinking..."):
                     # Build problem text
                     problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
-                    response = get_coach_response(
+                    result = get_coach_response(
                         problem_text,
                         user_input,
                         st.session_state.attempt_count,
-                        correct_answer=correct_answer_text
+                        correct_answer=correct_answer_text,
+                        answer_is_correct=st.session_state.answer_is_correct,
+                        awaiting_explanation=st.session_state.awaiting_explanation
                     )
+                    response = result["response"]
                     st.session_state.chat_history.append(("You", user_input))
                     st.session_state.chat_history.append(("Coach", response))
                     st.session_state.attempt_count += 1
+
                     # Check if coach confirmed correct answer
                     if is_correct_response(response):
-                        st.session_state.correct_questions.add(st.session_state.current_question_idx)
+                        # If answer just became correct, we're now awaiting explanation
+                        if not st.session_state.answer_is_correct:
+                            st.session_state.answer_is_correct = True
+                            st.session_state.awaiting_explanation = True
+                        # If already awaiting explanation and coach says it's correct/complete
+                        elif st.session_state.awaiting_explanation:
+                            # Check for completion indicators
+                            completion_indicators = ["perfect", "excellent", "you nailed it", "great job",
+                                                    "well done", "you really understand", "nice work"]
+                            response_lower = response.lower()
+                            if any(ind in response_lower for ind in completion_indicators):
+                                st.session_state.correct_questions.add(st.session_state.current_question_idx)
+                                st.session_state.awaiting_explanation = False
                 st.rerun()
 
             if submit_answer:
                 with st.spinner("Coach is checking your answer..."):
                     problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
                     message = f"My answer is {selected_choice}"
-                    response = get_coach_response(
+                    result = get_coach_response(
                         problem_text,
                         message,
                         st.session_state.attempt_count,
-                        correct_answer=correct_answer_text
+                        correct_answer=correct_answer_text,
+                        answer_is_correct=st.session_state.answer_is_correct,
+                        awaiting_explanation=st.session_state.awaiting_explanation
                     )
+                    response = result["response"]
                     st.session_state.chat_history.append(("You", message))
                     st.session_state.chat_history.append(("Coach", response))
                     st.session_state.attempt_count += 1
-                    # Check if coach confirmed correct answer
+
+                    # Check if coach confirmed correct answer - now awaiting explanation
                     if is_correct_response(response):
-                        st.session_state.correct_questions.add(st.session_state.current_question_idx)
+                        st.session_state.answer_is_correct = True
+                        st.session_state.awaiting_explanation = True
                 st.rerun()
 
             if reveal_btn:
                 with st.spinner("Getting the answer..."):
                     problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
-                    response = run_async(process_turn(
+                    result = run_async(process_turn(
                         problem=problem_text,
                         student_message="Please show me the answer",
                         attempt_count=5,
                         reveal_now=True,
                         correct_answer=correct_answer_text
                     ))
+                    response = result["response"]
                     st.session_state.chat_history.append(("You", "Please reveal the answer"))
                     st.session_state.chat_history.append(("Coach", response))
                 st.rerun()
@@ -397,7 +431,8 @@ def main():
                         with st.spinner("Coach is ready..."):
                             problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
                             correct_ans = current_q.choices[current_q.correct_answer - 1] if current_q.correct_answer > 0 else ""
-                            response = get_coach_response(problem_text, "I'm ready to start", 0, correct_answer=correct_ans)
+                            result = get_coach_response(problem_text, "I'm ready to start", 0, correct_answer=correct_ans)
+                            response = result["response"]
                             st.session_state.chat_history.append(("Coach", response))
                         st.rerun()
                 else:
@@ -428,6 +463,8 @@ def main():
                         st.session_state.current_question_idx -= 1
                         st.session_state.chat_history = []
                         st.session_state.attempt_count = 0
+                        st.session_state.answer_is_correct = False
+                        st.session_state.awaiting_explanation = False
                         st.rerun()
             with nav_col2:
                 if st.session_state.current_question_idx < len(st.session_state.questions) - 1:
@@ -435,6 +472,8 @@ def main():
                         st.session_state.current_question_idx += 1
                         st.session_state.chat_history = []
                         st.session_state.attempt_count = 0
+                        st.session_state.answer_is_correct = False
+                        st.session_state.awaiting_explanation = False
                         st.rerun()
 
 
