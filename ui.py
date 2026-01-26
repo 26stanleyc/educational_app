@@ -420,21 +420,12 @@ def main():
                     st.session_state.chat_history.append(("Coach", response))
                     st.session_state.attempt_count += 1
 
-                    # Check if coach confirmed correct answer
+                    # Check if coach confirmed correct answer - mark as completed immediately
                     if is_correct_response(response):
-                        # If answer just became correct, we're now awaiting explanation
                         if not st.session_state.answer_is_correct:
                             st.session_state.answer_is_correct = True
                             st.session_state.awaiting_explanation = True
-                        # If already awaiting explanation and coach says it's correct/complete
-                        elif st.session_state.awaiting_explanation:
-                            # Check for completion indicators
-                            completion_indicators = ["perfect", "excellent", "you nailed it", "great job",
-                                                    "well done", "you really understand", "nice work"]
-                            response_lower = response.lower()
-                            if any(ind in response_lower for ind in completion_indicators):
-                                st.session_state.correct_questions.add(st.session_state.current_question_idx)
-                                st.session_state.awaiting_explanation = False
+                            st.session_state.correct_questions.add(st.session_state.current_question_idx)
                 st.rerun()
 
             if submit_answer:
@@ -454,10 +445,11 @@ def main():
                     st.session_state.chat_history.append(("Coach", response))
                     st.session_state.attempt_count += 1
 
-                    # Check if coach confirmed correct answer - now awaiting explanation
+                    # Check if coach confirmed correct answer - mark as completed
                     if is_correct_response(response):
                         st.session_state.answer_is_correct = True
                         st.session_state.awaiting_explanation = True
+                        st.session_state.correct_questions.add(st.session_state.current_question_idx)
                 st.rerun()
 
             if reveal_btn:
@@ -473,6 +465,8 @@ def main():
                     response = result["response"]
                     st.session_state.chat_history.append(("You", "Please reveal the answer"))
                     st.session_state.chat_history.append(("Coach", response))
+                    # Mark question as completed when answer is revealed
+                    st.session_state.correct_questions.add(st.session_state.current_question_idx)
                 st.rerun()
 
         with col2:
