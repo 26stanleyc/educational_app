@@ -261,7 +261,7 @@ def main():
                 st.error(f"File too large ({file_size_mb:.1f} MB). Please upload a PDF under 1.5 MB.")
             else:
                 use_ai_parsing = st.checkbox(
-                    "Use AI parsing (LlamaParse)",
+                    "Use AI parsing (May take a few minutes)",
                     value=True,
                     help="Uses LlamaParse + Claude to automatically detect questions. Requires API keys."
                 )
