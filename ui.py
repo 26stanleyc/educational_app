@@ -243,7 +243,7 @@ def main():
     st.markdown("""**Math Stan** is a coach who guides you through your homework!
 
 Here's how you use it in 3 simple steps:
-1. Upload a PDF or a picture in the sidebar
+1. Upload a PDF or a picture of MCQ questions in the sidebar
 2. Press Parse PDF
 3. The questions now should show up in the sidebar, have fun!""")
 
