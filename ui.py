@@ -180,30 +180,35 @@ def main():
         )
 
         if uploaded_file is not None:
-            use_ai_parsing = st.checkbox(
-                "Use AI parsing (LlamaParse)",
-                value=True,
-                help="Uses LlamaParse + Claude to automatically detect questions. Requires API keys."
-            )
+            # Check file size (1.5 MB limit)
+            file_size_mb = uploaded_file.size / (1024 * 1024)
+            if file_size_mb > 1.5:
+                st.error(f"File too large ({file_size_mb:.1f} MB). Please upload a PDF under 1.5 MB.")
+            else:
+                use_ai_parsing = st.checkbox(
+                    "Use AI parsing (LlamaParse)",
+                    value=True,
+                    help="Uses LlamaParse + Claude to automatically detect questions. Requires API keys."
+                )
 
-            if st.button("Parse PDF", type="primary"):
-                with st.spinner("Parsing PDF... This may take a moment for AI parsing."):
-                    pdf_bytes = uploaded_file.read()
-                    st.session_state.questions = parse_questions_from_uploaded_pdf(
-                        pdf_bytes,
-                        filename=uploaded_file.name,
-                        use_llamaparse=use_ai_parsing
-                    )
-                    st.session_state.current_question_idx = 0
-                    st.session_state.chat_history = []
-                    st.session_state.attempt_count = 0
-                    st.session_state.correct_questions = set()
+                if st.button("Parse PDF", type="primary"):
+                    with st.spinner("Parsing PDF... This may take a moment for AI parsing."):
+                        pdf_bytes = uploaded_file.read()
+                        st.session_state.questions = parse_questions_from_uploaded_pdf(
+                            pdf_bytes,
+                            filename=uploaded_file.name,
+                            use_llamaparse=use_ai_parsing
+                        )
+                        st.session_state.current_question_idx = 0
+                        st.session_state.chat_history = []
+                        st.session_state.attempt_count = 0
+                        st.session_state.correct_questions = set()
 
-                if st.session_state.questions:
-                    st.success(f"Extracted {len(st.session_state.questions)} questions!")
-                else:
-                    st.error("Could not extract questions from this PDF.")
-                st.rerun()
+                    if st.session_state.questions:
+                        st.success(f"Extracted {len(st.session_state.questions)} questions!")
+                    else:
+                        st.error("Could not extract questions from this PDF.")
+                    st.rerun()
 
         st.divider()
 
