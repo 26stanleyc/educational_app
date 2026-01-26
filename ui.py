@@ -1,5 +1,5 @@
 """
-Algebra 1 Coach - Streamlit UI
+Math Stan - Streamlit UI
 A basic web interface for the tutoring application.
 """
 
@@ -231,7 +231,7 @@ def get_coach_response(problem: str, message: str, attempt: int, correct_answer:
 def main():
     """Main Streamlit application."""
     st.set_page_config(
-        page_title="Algebra 1 Coach",
+        page_title="Math Stan",
         page_icon="📐",
         layout="wide"
     )
@@ -239,8 +239,13 @@ def main():
     init_session_state()
 
     # Header
-    st.title("📐 Algebra 1 Coach")
-    st.markdown("*Your algebra tutor!*")
+    st.title("📐 Math Stan")
+    st.markdown("""**Math Stan** is a coach who guides you through your homework!
+
+Here's how you use it in 3 simple steps:
+1. Upload a PDF or a picture in the sidebar
+2. Press Parse PDF
+3. The questions now should show up in the sidebar, have fun!""")
 
     # Sidebar for navigation
     with st.sidebar:
