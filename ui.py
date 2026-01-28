@@ -377,7 +377,6 @@ Here's how you use it in 3 simple steps:
 
             # Different UI for MCQ vs FRQ
             selected_choice = None
-            frq_answer = None
 
             if current_q.question_type == "mcq" and current_q.choices:
                 # MCQ: Show answer choices as radio buttons
@@ -388,19 +387,9 @@ Here's how you use it in 3 simple steps:
                     key=f"choices_{current_q.number}",
                     label_visibility="collapsed"
                 )
-            else:
-                # FRQ: Show text input for answer
-                st.markdown("**Your Answer:**")
-                frq_answer = st.text_area(
-                    "Type your answer:",
-                    key=f"frq_answer_{current_q.number}",
-                    placeholder="Type your answer here...",
-                    height=80
-                )
+                st.divider()
 
-            st.divider()
-
-            # Response input area
+            # Response input area (for FRQ, this is where they type their answer too)
             st.markdown("**💬 Chat with your Coach:**")
 
             user_input = st.text_area(
@@ -461,8 +450,9 @@ Here's how you use it in 3 simple steps:
                     answer_to_submit = selected_choice
                     message = f"My answer is {selected_choice}"
                 else:
-                    answer_to_submit = frq_answer
-                    message = f"My answer is: {frq_answer}"
+                    # For FRQ, use the chat input as the answer
+                    answer_to_submit = user_input
+                    message = f"My answer is: {user_input}"
 
                 if answer_to_submit:
                     with st.spinner("Coach is checking your answer..."):
