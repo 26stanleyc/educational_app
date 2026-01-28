@@ -40,6 +40,7 @@ class ParsedQuestion:
     has_graph: bool = False
     page: int = 1
     raw_markdown: str = ""
+    question_type: str = "mcq"  # "mcq" or "frq"
 
 
 def get_llama_api_key() -> Optional[str]:
@@ -182,20 +183,22 @@ def extract_questions_with_claude(markdown: str) -> List[ParsedQuestion]:
 
     client = Anthropic(api_key=api_key)
 
-    prompt = f"""Extract ONLY the multiple choice questions (questions with 4 answer choices) from this exam content.
+    prompt = f"""Extract ALL questions (both multiple choice AND free response) from this exam content.
 
 Return a JSON array where each object has:
 - "number": question number (integer)
 - "text": the full question text
-- "choices": array of 4 answer choices like ["(1) option1", "(2) option2", "(3) option3", "(4) option4"]
+- "type": "mcq" for multiple choice (has 4 choices), "frq" for free response (no choices)
+- "choices": array of 4 answer choices like ["(1) option1", "(2) option2", "(3) option3", "(4) option4"] for MCQ, empty array [] for FRQ
 - "has_graph": true if the question references or shows a graph, figure, diagram, table, or image
 - "correct_answer": 0
 - "page": the page number where this question appears in the QUESTION section (not counting cover pages). First question page = 1
 
 RULES:
-- Skip free response questions (ones without 4 choices)
-- Answer choices use (1), (2), (3), (4) format
-- Extract ALL multiple choice questions completely
+- Extract BOTH multiple choice questions (with 4 choices) AND free response questions (without choices)
+- For MCQ: Answer choices use (1), (2), (3), (4) format
+- For FRQ: Set "choices" to empty array [] and "type" to "frq"
+- Extract ALL questions completely
 - NO comments, NO explanations - ONLY the JSON array
 - The JSON must be complete and valid
 - IMPORTANT: Use plain text for math, NOT LaTeX. Write "f(x) = (x - 2)^2 + 4" not "$f(x) = (x - 2)^2 + 4$"
@@ -250,6 +253,7 @@ Output the complete JSON array:"""
             correct_answer=q.get("correct_answer", 0),
             has_graph=q.get("has_graph", False),
             page=q.get("page", 1),
+            question_type=q.get("type", "mcq"),
         ))
 
     return questions

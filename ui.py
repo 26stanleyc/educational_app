@@ -24,9 +24,10 @@ class Question:
     number: int
     text: str
     choices: List[str]
-    correct_answer: int = 1  # 1-indexed (1, 2, 3, or 4)
+    correct_answer: int = 0  # 1-indexed (1, 2, 3, or 4) for MCQ, 0 for FRQ
     has_graph: bool = False
     page: int = 1
+    question_type: str = "mcq"  # "mcq" or "frq"
 
 
 def parse_questions_from_uploaded_pdf(pdf_bytes: bytes, filename: str = "", use_llamaparse: bool = True) -> List[Question]:
@@ -58,10 +59,11 @@ def parse_questions_from_uploaded_pdf(pdf_bytes: bytes, filename: str = "", use_
             questions.append(Question(
                 number=lq.number,
                 text=lq.text,
-                choices=lq.choices if lq.choices else ["This appears to be a free-response question."],
+                choices=lq.choices if lq.choices else [],
                 correct_answer=lq.correct_answer,
                 has_graph=lq.has_graph,
                 page=lq.page if lq.page > 0 else 1,
+                question_type=lq.question_type,
             ))
 
         return questions
@@ -244,7 +246,7 @@ def main():
 
 Here's how you use it in 3 simple steps:
 1. Upload a PDF or a picture of MCQ questions in the sidebar
-2. Press Parse PDF
+2. Press Parse Image
 3. The questions now should show up in the sidebar, have fun!""")
 
     # Sidebar for navigation
@@ -272,8 +274,8 @@ Here's how you use it in 3 simple steps:
                     help="Uses LlamaParse + Claude to automatically detect questions. Requires API keys."
                 )
 
-                if st.button("Parse PDF", type="primary"):
-                    with st.spinner("Parsing PDF... This may take a moment for AI parsing."):
+                if st.button("Parse Image", type="primary"):
+                    with st.spinner("Parsing image... This may take a moment for AI parsing."):
                         pdf_bytes = uploaded_file.read()
                         st.session_state.questions = parse_questions_from_uploaded_pdf(
                             pdf_bytes,
@@ -373,14 +375,28 @@ Here's how you use it in 3 simple steps:
             </div>
             """, unsafe_allow_html=True)
 
-            # Answer choices
-            st.markdown("**Answer Choices:**")
-            selected_choice = st.radio(
-                "Select your answer:",
-                current_q.choices,
-                key=f"choices_{current_q.number}",
-                label_visibility="collapsed"
-            )
+            # Different UI for MCQ vs FRQ
+            selected_choice = None
+            frq_answer = None
+
+            if current_q.question_type == "mcq" and current_q.choices:
+                # MCQ: Show answer choices as radio buttons
+                st.markdown("**Answer Choices:**")
+                selected_choice = st.radio(
+                    "Select your answer:",
+                    current_q.choices,
+                    key=f"choices_{current_q.number}",
+                    label_visibility="collapsed"
+                )
+            else:
+                # FRQ: Show text input for answer
+                st.markdown("**Your Answer:**")
+                frq_answer = st.text_area(
+                    "Type your answer:",
+                    key=f"frq_answer_{current_q.number}",
+                    placeholder="Type your answer here...",
+                    height=80
+                )
 
             st.divider()
 
@@ -390,7 +406,7 @@ Here's how you use it in 3 simple steps:
             user_input = st.text_area(
                 "Type your response, question, or reasoning:",
                 key=f"user_input_{current_q.number}",
-                placeholder="Tell me what you're thinking, ask a question, or explain your answer choice...",
+                placeholder="Tell me what you're thinking, ask a question, or explain your reasoning...",
                 height=100
             )
 
@@ -406,13 +422,18 @@ Here's how you use it in 3 simple steps:
                 reveal_btn = st.button(reveal_label, use_container_width=True, disabled=reveal_disabled)
 
             # Handle button clicks
-            # Get the correct answer text for the coach
-            correct_answer_text = current_q.choices[current_q.correct_answer - 1] if current_q.correct_answer > 0 else ""
+            # Get the correct answer text for the coach (MCQ only, FRQ model solves it)
+            is_mcq = current_q.question_type == "mcq" and current_q.choices
+            correct_answer_text = current_q.choices[current_q.correct_answer - 1] if is_mcq and current_q.correct_answer > 0 else ""
+
+            # Build problem text based on question type
+            if is_mcq:
+                problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
+            else:
+                problem_text = f"[Free Response Question]\n{current_q.text}"
 
             if send_btn and user_input:
                 with st.spinner("Coach is thinking..."):
-                    # Build problem text
-                    problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
                     result = get_coach_response(
                         problem_text,
                         user_input,
@@ -435,32 +456,40 @@ Here's how you use it in 3 simple steps:
                 st.rerun()
 
             if submit_answer:
-                with st.spinner("Coach is checking your answer..."):
-                    problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
+                # Get the answer based on question type
+                if is_mcq:
+                    answer_to_submit = selected_choice
                     message = f"My answer is {selected_choice}"
-                    result = get_coach_response(
-                        problem_text,
-                        message,
-                        st.session_state.attempt_count,
-                        correct_answer=correct_answer_text,
-                        answer_is_correct=st.session_state.answer_is_correct,
-                        awaiting_explanation=st.session_state.awaiting_explanation
-                    )
-                    response = result["response"]
-                    st.session_state.chat_history.append(("You", message))
-                    st.session_state.chat_history.append(("Coach", response))
-                    st.session_state.attempt_count += 1
+                else:
+                    answer_to_submit = frq_answer
+                    message = f"My answer is: {frq_answer}"
 
-                    # Check if coach confirmed correct answer - mark as completed
-                    if is_correct_response(response):
-                        st.session_state.answer_is_correct = True
-                        st.session_state.awaiting_explanation = True
-                        st.session_state.correct_questions.add(st.session_state.current_question_idx)
-                st.rerun()
+                if answer_to_submit:
+                    with st.spinner("Coach is checking your answer..."):
+                        result = get_coach_response(
+                            problem_text,
+                            message,
+                            st.session_state.attempt_count,
+                            correct_answer=correct_answer_text,
+                            answer_is_correct=st.session_state.answer_is_correct,
+                            awaiting_explanation=st.session_state.awaiting_explanation
+                        )
+                        response = result["response"]
+                        st.session_state.chat_history.append(("You", message))
+                        st.session_state.chat_history.append(("Coach", response))
+                        st.session_state.attempt_count += 1
+
+                        # Check if coach confirmed correct answer - mark as completed
+                        if is_correct_response(response):
+                            st.session_state.answer_is_correct = True
+                            st.session_state.awaiting_explanation = True
+                            st.session_state.correct_questions.add(st.session_state.current_question_idx)
+                    st.rerun()
+                else:
+                    st.warning("Please enter an answer before submitting.")
 
             if reveal_btn:
                 with st.spinner("Getting the answer..."):
-                    problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
                     result = run_async(process_turn(
                         problem=problem_text,
                         student_message="Please show me the answer",

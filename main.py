@@ -134,8 +134,8 @@ Examples:
 **Goal:** Confirm if correct, then make sure they understand why.
 
 **IMPORTANT - How to verify answers:**
-- If the Answer Key above says "Correct answer: (X)..." where X is a specific choice → COMPARE the student's answer to this. Don't re-solve.
-- If the Answer Key says "Correct answer: Not provided" or is empty → You must SOLVE the problem yourself to check their answer.
+- For MULTIPLE CHOICE (problem shows "Choices:"): If the Answer Key has a specific choice, compare to it. Otherwise solve yourself.
+- For FREE RESPONSE (problem shows "[Free Response Question]"): You must SOLVE the problem yourself first, then compare to the student's answer. Use mathematical/semantic equivalence - different forms of the same answer (e.g., "2x + 4" vs "2(x + 2)") are BOTH correct.
 
 **If awaiting_explanation=false (student just gave an answer):**
 1. First, determine if their answer is correct (using the method above)
