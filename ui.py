@@ -91,15 +91,11 @@ def get_sample_questions() -> List[Question]:
         ),
         Question(
             number=2,
-            text="What is the solution to 2 + 3(2a + 1) = 3(a + 2)?",
-            choices=[
-                "(1) 1/3",
-                "(2) -1/3",
-                "(3) 1",
-                "(4) -1"
-            ],
-            correct_answer=1,
-            page=1
+            text="Solve the equation 3(x + 2) - 4 = 2x + 8 algebraically. Show your work.",
+            choices=[],
+            correct_answer=0,
+            page=1,
+            question_type="frq"
         ),
         Question(
             number=3,
