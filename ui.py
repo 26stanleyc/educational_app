@@ -247,7 +247,7 @@ Here's how you use it in 3 simple steps:
 2. Press Parse Image
 3. The questions now should show up in the sidebar, have fun!""")
     with header_col2:
-        st.image("calculatorboy.jpeg", width=150)
+        st.image("calculatorboy.jpg", width=300)
 
     # Sidebar for navigation
     with st.sidebar:
