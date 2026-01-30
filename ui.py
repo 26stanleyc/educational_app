@@ -91,9 +91,9 @@ def get_sample_questions() -> List[Question]:
         ),
         Question(
             number=2,
-            text="Solve the equation 3(x + 2) - 4 = 2x + 8 algebraically. Show your work.",
+            text="Solve the equation 2(x + 2) + 2 = 4x + 8 algebraically. Show your work.",
             choices=[],
-            correct_answer=0,
+            correct_answer=-1,
             page=1,
             question_type="frq"
         ),
@@ -236,14 +236,18 @@ def main():
 
     init_session_state()
 
-    # Header
-    st.title("📐 Math Stan")
-    st.markdown("""**Math Stan** is a coach who guides you through your homework!
+    # Header with mascot image
+    header_col1, header_col2 = st.columns([3, 1])
+    with header_col1:
+        st.title("📐 Math Stan")
+        st.markdown("""**Math Stan** is a coach who guides you through your homework!
 
 Here's how you use it in 3 simple steps:
 1. Upload a PDF or a picture of MCQ questions in the sidebar
 2. Press Parse Image
 3. The questions now should show up in the sidebar, have fun!""")
+    with header_col2:
+        st.image("calculatorboy.jpeg", width=150)
 
     # Sidebar for navigation
     with st.sidebar:
