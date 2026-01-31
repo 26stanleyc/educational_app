@@ -311,8 +311,8 @@ def show_login_page():
             st.rerun()
 
 
-def show_header_with_coins():
-    """Display header with coin count for logged-in users."""
+def show_header_with_fish():
+    """Display header with fish count for logged-in users."""
     user_data = None
     if st.session_state.user_id:
         user_data = get_user_data(st.session_state.user_id)
@@ -321,14 +321,22 @@ def show_header_with_coins():
 
     with header_col1:
         st.title("📐 Math Stan")
+        st.markdown("""**Math Stan** is a coach who guides you through your homework!
+
+Here's how you use it in 5 simple steps:
+1. Upload a PDF or a picture of MCQ questions in the sidebar
+2. Press Parse Image
+3. The questions now should show up in the sidebar, have fun!
+4. Solve questions correctly to earn fish!
+5. Spend your fish in the Shop to buy owl accessories""")
 
     with header_col2:
         if user_data:
-            coins = user_data.get("currency", 0)
+            fish = user_data.get("currency", 0)
             st.markdown(f"""
-            <div style="background-color: #ffd700; padding: 10px 15px; border-radius: 20px;
+            <div style="background-color: #87CEEB; padding: 10px 15px; border-radius: 20px;
                         text-align: center; margin-top: 15px; color: #000;">
-                <strong>🪙 {coins}</strong>
+                <strong>🐟 {fish}</strong>
             </div>
             """, unsafe_allow_html=True)
         elif st.session_state.user_id is None:
@@ -525,7 +533,7 @@ def show_practice_page():
                                 update_currency(st.session_state.user_id, 5)
                                 increment_solved_questions(st.session_state.user_id)
                                 st.session_state.rewarded_questions.add(question_key)
-                                st.toast("🪙 +5 coins!")
+                                st.toast("🐟 +5 fish!")
                 st.rerun()
 
             if submit_answer:
@@ -562,7 +570,7 @@ def show_practice_page():
                                 update_currency(st.session_state.user_id, 5)
                                 increment_solved_questions(st.session_state.user_id)
                                 st.session_state.rewarded_questions.add(question_key)
-                                st.toast("🪙 +5 coins!")
+                                st.toast("🐟 +5 fish!")
                     st.rerun()
                 else:
                     st.warning("Please enter an answer before submitting.")
@@ -652,10 +660,10 @@ def show_shop_page():
         st.error("Could not load user data.")
         return
 
-    coins = user_data.get("currency", 0)
+    fish = user_data.get("currency", 0)
     inventory = user_data.get("inventory", [])
 
-    st.markdown(f"### 🪙 Your Coins: **{coins}**")
+    st.markdown(f"### 🐟 Your Fish: **{fish}**")
     st.markdown("Buy accessories to customize your owl!")
 
     st.divider()
@@ -677,7 +685,7 @@ def show_shop_page():
                     <div style="font-size: 40px;">{item['emoji']}</div>
                     <div style="font-weight: bold; color: #000;">{item['name']}</div>
                     <div style="color: #666; font-size: 12px;">{item['description']}</div>
-                    <div style="color: #ffc107; font-weight: bold;">🪙 {item['price']}</div>
+                    <div style="color: #1E90FF; font-weight: bold;">🐟 {item['price']}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -793,11 +801,11 @@ def show_profile_page():
     with col2:
         st.markdown("### Stats")
 
-        coins = user_data.get("currency", 0)
+        fish = user_data.get("currency", 0)
         solved = user_data.get("solved_questions", 0)
         inventory_count = len(user_data.get("inventory", []))
 
-        st.metric("🪙 Coins", coins)
+        st.metric("🐟 Fish", fish)
         st.metric("✅ Questions Solved", solved)
         st.metric("🎒 Items Owned", inventory_count)
 
@@ -830,8 +838,8 @@ def main():
         show_login_page()
         return
 
-    # Show header with coins
-    show_header_with_coins()
+    # Show header with fish
+    show_header_with_fish()
 
     # Navigation tabs
     tab1, tab2, tab3, tab4 = st.tabs(["📝 Practice", "🛒 Shop", "🦉 My Owl", "👤 Profile"])

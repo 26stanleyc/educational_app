@@ -165,7 +165,7 @@ def get_user_data(user_id: str) -> Optional[Dict[str, Any]]:
 
 
 def update_currency(user_id: str, amount: int) -> bool:
-    """Add coins to user's balance."""
+    """Add fish to user's balance."""
     db = get_db()
     if not db:
         return False
@@ -230,7 +230,7 @@ def purchase_item(user_id: str, item_id: str, price: int) -> Dict[str, Any]:
 
         # Check if enough currency
         if current_currency < price:
-            return {"success": False, "message": f"Not enough coins! You need {price - current_currency} more."}
+            return {"success": False, "message": f"Not enough fish! You need {price - current_currency} more."}
 
         # Purchase the item
         new_currency = current_currency - price
