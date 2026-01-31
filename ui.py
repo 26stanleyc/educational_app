@@ -151,15 +151,8 @@ def get_sample_questions() -> List[Question]:
     ]
 
 
-@st.cache_resource
-def get_cookie_manager():
-    """Get cookie manager instance (cached)."""
-    return stx.CookieManager()
-
-
-def check_saved_login():
+def check_saved_login(cookie_manager):
     """Check if user has a saved login cookie and restore session."""
-    cookie_manager = get_cookie_manager()
     saved_user_id = cookie_manager.get("math_stan_user_id")
 
     if saved_user_id and st.session_state.user_id is None:
@@ -175,16 +168,14 @@ def check_saved_login():
             st.session_state.user_name = "Guest"
 
 
-def save_login_cookie(user_id: str):
+def save_login_cookie(cookie_manager, user_id: str):
     """Save user_id to cookie for 1 day."""
-    cookie_manager = get_cookie_manager()
     expires = datetime.now() + timedelta(days=1)
     cookie_manager.set("math_stan_user_id", user_id, expires_at=expires)
 
 
-def clear_login_cookie():
+def clear_login_cookie(cookie_manager):
     """Clear the login cookie on sign out."""
-    cookie_manager = get_cookie_manager()
     cookie_manager.delete("math_stan_user_id")
 
 
@@ -373,7 +364,8 @@ def show_login_modal():
                         user_data = get_user_data(result["user_id"])
                         if user_data:
                             st.session_state.user_name = user_data.get("name", "Student")
-                        save_login_cookie(result["user_id"])  # Save to cookie
+                        if "cookie_manager" in st.session_state:
+                            save_login_cookie(st.session_state.cookie_manager, result["user_id"])
                         st.session_state.show_login_modal = False
                         st.rerun()
                     else:
@@ -399,7 +391,8 @@ def show_login_modal():
                     if result["success"]:
                         st.session_state.user_id = result["user_id"]
                         st.session_state.user_name = signup_name
-                        save_login_cookie(result["user_id"])  # Save to cookie
+                        if "cookie_manager" in st.session_state:
+                            save_login_cookie(st.session_state.cookie_manager, result["user_id"])
                         st.session_state.show_login_modal = False
                         st.rerun()
                     else:
@@ -452,7 +445,8 @@ Here's how you use it in 5 simple steps:
                 st.rerun()
         else:
             if st.button("Sign Out", key="header_signout"):
-                clear_login_cookie()
+                if "cookie_manager" in st.session_state:
+                    clear_login_cookie(st.session_state.cookie_manager)
                 st.session_state.user_id = None
                 st.session_state.user_name = "Guest"
                 st.session_state.rewarded_questions = set()
@@ -933,8 +927,10 @@ def main():
 
     init_session_state()
 
-    # Check for saved login cookie
-    check_saved_login()
+    # Initialize cookie manager and check for saved login
+    cookie_manager = stx.CookieManager(key="math_stan_cookies")
+    st.session_state.cookie_manager = cookie_manager
+    check_saved_login(cookie_manager)
 
     # Check if Firebase is available
     if not FIREBASE_AVAILABLE:
