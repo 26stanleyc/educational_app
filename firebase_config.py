@@ -2,13 +2,15 @@
 Firebase configuration and helper functions for authentication and database operations.
 """
 
+import os
 import pyrebase
 import streamlit as st
 from typing import Optional, Dict, List, Any
 
 
 def get_firebase_config() -> Dict[str, str]:
-    """Get Firebase configuration from Streamlit secrets."""
+    """Get Firebase configuration from Streamlit secrets or environment variables."""
+    # Try Streamlit secrets first (local development)
     try:
         return {
             "apiKey": st.secrets["firebase"]["apiKey"],
@@ -19,9 +21,24 @@ def get_firebase_config() -> Dict[str, str]:
             "messagingSenderId": st.secrets["firebase"]["messagingSenderId"],
             "appId": st.secrets["firebase"]["appId"],
         }
-    except Exception as e:
-        st.error(f"Firebase configuration not found in secrets: {e}")
-        return {}
+    except Exception:
+        pass
+
+    # Fall back to environment variables (Railway deployment)
+    api_key = os.environ.get("FIREBASE_APIKEY")
+    if api_key:
+        return {
+            "apiKey": api_key,
+            "authDomain": os.environ.get("FIREBASE_AUTHDOMAIN", ""),
+            "databaseURL": os.environ.get("FIREBASE_DATABASEURL", ""),
+            "projectId": os.environ.get("FIREBASE_PROJECTID", ""),
+            "storageBucket": os.environ.get("FIREBASE_STORAGEBUCKET", ""),
+            "messagingSenderId": os.environ.get("FIREBASE_MESSAGINGSENDERID", ""),
+            "appId": os.environ.get("FIREBASE_APPID", ""),
+        }
+
+    st.error("Firebase configuration not found. Please set up secrets or environment variables.")
+    return {}
 
 
 @st.cache_resource
