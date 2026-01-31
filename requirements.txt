@@ -2,3 +2,4 @@ anthropic>=0.18.0
 pymupdf>=1.23.0
 streamlit>=1.28.0
 llama-parse>=0.6.0
+pyrebase4>=4.7.0

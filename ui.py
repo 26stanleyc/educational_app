@@ -1,6 +1,6 @@
 """
 Math Stan - Streamlit UI
-A basic web interface for the tutoring application.
+A basic web interface for the tutoring application with gamification features.
 """
 
 import streamlit as st
@@ -16,6 +16,17 @@ except ImportError:
     LLAMAPARSE_AVAILABLE = False
 
 from main import Algebra1Coach, process_turn
+
+# Import Firebase and shop modules
+try:
+    from firebase_config import (
+        sign_up, sign_in, get_user_data, update_currency,
+        increment_solved_questions, purchase_item, equip_item, unequip_item
+    )
+    from shop_data import ACCESSORIES, SLOTS, get_accessory, get_accessories_by_slot
+    FIREBASE_AVAILABLE = True
+except ImportError:
+    FIREBASE_AVAILABLE = False
 
 
 @dataclass
@@ -138,10 +149,19 @@ def get_sample_questions() -> List[Question]:
 
 def init_session_state():
     """Initialize Streamlit session state variables."""
+    # Authentication state
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+    if "user_id" not in st.session_state:
+        st.session_state.user_id = None
+    if "user_name" not in st.session_state:
+        st.session_state.user_name = ""
+
+    # Question state
     if "questions" not in st.session_state:
-        st.session_state.questions = get_sample_questions()  # Load sample questions by default
+        st.session_state.questions = get_sample_questions()
     if "using_sample_questions" not in st.session_state:
-        st.session_state.using_sample_questions = True  # Track if using sample vs uploaded
+        st.session_state.using_sample_questions = True
     if "current_question_idx" not in st.session_state:
         st.session_state.current_question_idx = 0
     if "chat_history" not in st.session_state:
@@ -151,16 +171,23 @@ def init_session_state():
     if "coach_initialized" not in st.session_state:
         st.session_state.coach_initialized = False
     if "correct_questions" not in st.session_state:
-        st.session_state.correct_questions = set()  # Track indices of correctly answered questions
+        st.session_state.correct_questions = set()
     if "answer_is_correct" not in st.session_state:
-        st.session_state.answer_is_correct = False  # Track if current answer is correct
+        st.session_state.answer_is_correct = False
     if "awaiting_explanation" not in st.session_state:
-        st.session_state.awaiting_explanation = False  # Track if waiting for explanation
+        st.session_state.awaiting_explanation = False
+
+    # Track questions that have already awarded coins (to prevent double-awarding)
+    if "rewarded_questions" not in st.session_state:
+        st.session_state.rewarded_questions = set()
+
+    # Current page/tab
+    if "current_tab" not in st.session_state:
+        st.session_state.current_tab = "Practice"
 
 
 def get_selected_answer_number(selected_choice: str) -> int:
     """Extract the answer number (1-4) from the selected choice string."""
-    # Choice format is like "(1) some text" or "(2) some text"
     if selected_choice and selected_choice.startswith("("):
         try:
             return int(selected_choice[1])
@@ -173,7 +200,6 @@ def is_correct_response(response: str) -> bool:
     """Check if the coach's response indicates the answer is correct."""
     response_lower = response.lower()
 
-    # Strong phrases that DEFINITELY indicate correct answer - check these FIRST
     strong_correct_indicators = [
         "that's correct", "is correct", "you're correct",
         "that's the right answer", "the right answer",
@@ -182,12 +208,10 @@ def is_correct_response(response: str) -> bool:
         "great work", "perfect", "nice work", "good job"
     ]
 
-    # If coach confirms correct, mark as correct (even if also asking for explanation)
     for phrase in strong_correct_indicators:
         if phrase in response_lower:
             return True
 
-    # Phrases that indicate incorrect answer
     incorrect_indicators = [
         "not quite", "not correct", "incorrect", "try again", "not right",
         "that's not", "wrong", "close but", "almost", "not exactly",
@@ -195,7 +219,6 @@ def is_correct_response(response: str) -> bool:
         "careful", "watch out", "hmm", "are you sure"
     ]
 
-    # Check for incorrect indicators
     for phrase in incorrect_indicators:
         if phrase in response_lower:
             return False
@@ -226,29 +249,97 @@ def get_coach_response(problem: str, message: str, attempt: int, correct_answer:
     ))
 
 
-def main():
-    """Main Streamlit application."""
-    st.set_page_config(
-        page_title="Math Stan",
-        page_icon="📐",
-        layout="wide"
-    )
+def show_login_page():
+    """Display the login/signup page."""
+    st.title("📐 Math Stan")
+    st.markdown("**Welcome!** Sign in or create an account to start learning.")
 
-    init_session_state()
+    col1, col2, col3 = st.columns([1, 2, 1])
 
-    # Header with mascot image
-    header_col1, header_col2 = st.columns([3, 1])
+    with col2:
+        tab1, tab2 = st.tabs(["Sign In", "Sign Up"])
+
+        with tab1:
+            st.subheader("Sign In")
+            login_email = st.text_input("Email", key="login_email")
+            login_password = st.text_input("Password", type="password", key="login_password")
+
+            if st.button("Sign In", type="primary", use_container_width=True):
+                if login_email and login_password:
+                    result = sign_in(login_email, login_password)
+                    if result["success"]:
+                        st.session_state.logged_in = True
+                        st.session_state.user_id = result["user_id"]
+                        user_data = get_user_data(result["user_id"])
+                        if user_data:
+                            st.session_state.user_name = user_data.get("name", "Student")
+                        st.success(result["message"])
+                        st.rerun()
+                    else:
+                        st.error(result["message"])
+                else:
+                    st.warning("Please enter your email and password.")
+
+        with tab2:
+            st.subheader("Create Account")
+            signup_name = st.text_input("Your Name", key="signup_name")
+            signup_email = st.text_input("Email", key="signup_email")
+            signup_password = st.text_input("Password", type="password", key="signup_password",
+                                            help="At least 6 characters")
+
+            if st.button("Create Account", type="primary", use_container_width=True):
+                if signup_name and signup_email and signup_password:
+                    result = sign_up(signup_email, signup_password, signup_name)
+                    if result["success"]:
+                        st.session_state.logged_in = True
+                        st.session_state.user_id = result["user_id"]
+                        st.session_state.user_name = signup_name
+                        st.success(result["message"])
+                        st.rerun()
+                    else:
+                        st.error(result["message"])
+                else:
+                    st.warning("Please fill in all fields.")
+
+        # Guest mode option
+        st.divider()
+        st.caption("Or continue without an account:")
+        if st.button("Continue as Guest", use_container_width=True):
+            st.session_state.logged_in = True
+            st.session_state.user_id = None
+            st.session_state.user_name = "Guest"
+            st.rerun()
+
+
+def show_header_with_coins():
+    """Display header with coin count for logged-in users."""
+    user_data = None
+    if st.session_state.user_id:
+        user_data = get_user_data(st.session_state.user_id)
+
+    header_col1, header_col2, header_col3 = st.columns([3, 1, 1])
+
     with header_col1:
         st.title("📐 Math Stan")
-        st.markdown("""**Math Stan** is a coach who guides you through your homework!
 
-Here's how you use it in 3 simple steps:
-1. Upload a PDF or a picture of MCQ questions in the sidebar
-2. Press Parse Image
-3. The questions now should show up in the sidebar, have fun!""")
     with header_col2:
-        st.image("mathowl.png", width=300)
+        if user_data:
+            coins = user_data.get("currency", 0)
+            st.markdown(f"""
+            <div style="background-color: #ffd700; padding: 10px 15px; border-radius: 20px;
+                        text-align: center; margin-top: 15px; color: #000;">
+                <strong>🪙 {coins}</strong>
+            </div>
+            """, unsafe_allow_html=True)
+        elif st.session_state.user_id is None:
+            st.caption("Guest Mode")
 
+    with header_col3:
+        st.image("mathowl.png", width=80)
+
+
+def show_practice_page():
+    """Display the main practice/tutoring page."""
     # Sidebar for navigation
     with st.sidebar:
         st.header("📚 Questions")
@@ -263,7 +354,6 @@ Here's how you use it in 3 simple steps:
         st.caption("Accepted formats: PDF, PNG, JPG, JPEG")
 
         if uploaded_file is not None:
-            # Check file size (1.5 MB limit)
             file_size_mb = uploaded_file.size / (1024 * 1024)
             if file_size_mb > 10:
                 st.error(f"File too large ({file_size_mb:.1f} MB). Please upload a file under 10 MB.")
@@ -288,7 +378,7 @@ Here's how you use it in 3 simple steps:
                         st.session_state.correct_questions = set()
                         st.session_state.answer_is_correct = False
                         st.session_state.awaiting_explanation = False
-                        st.session_state.using_sample_questions = False  # Mark as using uploaded questions
+                        st.session_state.using_sample_questions = False
 
                     if st.session_state.questions:
                         st.success(f"Extracted {len(st.session_state.questions)} questions!")
@@ -303,7 +393,6 @@ Here's how you use it in 3 simple steps:
             correct_count = len(st.session_state.correct_questions)
             total_count = len(st.session_state.questions)
 
-            # Show different header based on sample vs uploaded
             if st.session_state.using_sample_questions:
                 st.subheader(f"📝 Sample Questions ({correct_count}/{total_count} ✓)")
                 st.caption("From Regents Algebra 1 Exam")
@@ -314,7 +403,6 @@ Here's how you use it in 3 simple steps:
                 is_correct = i in st.session_state.correct_questions
                 is_current = i == st.session_state.current_question_idx
 
-                # Use columns: green indicator + button
                 col1, col2 = st.columns([1, 6])
 
                 with col1:
@@ -341,7 +429,6 @@ Here's how you use it in 3 simple steps:
                         st.session_state.awaiting_explanation = False
                         st.rerun()
 
-                # Add green background to the row for correct questions
                 if is_correct:
                     st.markdown("""
                     <style>
@@ -359,27 +446,22 @@ Here's how you use it in 3 simple steps:
     if not st.session_state.questions:
         st.info("👈 Select a question from the sidebar to get started, or upload your own PDF exam!")
     else:
-        # Display current question
         current_q = st.session_state.questions[st.session_state.current_question_idx]
 
-        # Question display area
         col1, col2 = st.columns([2, 1])
 
         with col1:
             st.subheader(f"Question {current_q.number}")
 
-            # Question text on white background with black text
             st.markdown(f"""
             <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                 <p style="font-size: 16px; line-height: 1.6; color: #000000;">{current_q.text.replace(chr(10), '<br>')}</p>
             </div>
             """, unsafe_allow_html=True)
 
-            # Different UI for MCQ vs FRQ
             selected_choice = None
 
             if current_q.question_type == "mcq" and current_q.choices:
-                # MCQ: Show answer choices as radio buttons
                 st.markdown("**Answer Choices:**")
                 selected_choice = st.radio(
                     "Select your answer:",
@@ -389,7 +471,6 @@ Here's how you use it in 3 simple steps:
                 )
                 st.divider()
 
-            # Response input area (for FRQ, this is where they type their answer too)
             st.markdown("**💬 Chat with your Coach:**")
 
             user_input = st.text_area(
@@ -405,17 +486,13 @@ Here's how you use it in 3 simple steps:
             with col_b:
                 submit_answer = st.button("Submit Answer", use_container_width=True)
             with col_c:
-                # Reveal button locked until 3 attempts
                 reveal_disabled = st.session_state.attempt_count < 3
                 reveal_label = "Reveal Answer" if not reveal_disabled else f"Reveal Answer ({3 - st.session_state.attempt_count} more attempts)"
                 reveal_btn = st.button(reveal_label, use_container_width=True, disabled=reveal_disabled)
 
-            # Handle button clicks
-            # Get the correct answer text for the coach (MCQ only, FRQ model solves it)
             is_mcq = current_q.question_type == "mcq" and current_q.choices
             correct_answer_text = current_q.choices[current_q.correct_answer - 1] if is_mcq and current_q.correct_answer > 0 else ""
 
-            # Build problem text based on question type
             if is_mcq:
                 problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
             else:
@@ -436,21 +513,26 @@ Here's how you use it in 3 simple steps:
                     st.session_state.chat_history.append(("Coach", response))
                     st.session_state.attempt_count += 1
 
-                    # Check if coach confirmed correct answer - mark as completed immediately
                     if is_correct_response(response):
                         if not st.session_state.answer_is_correct:
                             st.session_state.answer_is_correct = True
                             st.session_state.awaiting_explanation = True
                             st.session_state.correct_questions.add(st.session_state.current_question_idx)
+
+                            # Award coins if user is logged in and hasn't been rewarded for this question
+                            question_key = f"{st.session_state.current_question_idx}_{current_q.number}"
+                            if st.session_state.user_id and question_key not in st.session_state.rewarded_questions:
+                                update_currency(st.session_state.user_id, 5)
+                                increment_solved_questions(st.session_state.user_id)
+                                st.session_state.rewarded_questions.add(question_key)
+                                st.toast("🪙 +5 coins!")
                 st.rerun()
 
             if submit_answer:
-                # Get the answer based on question type
                 if is_mcq:
                     answer_to_submit = selected_choice
                     message = f"My answer is {selected_choice}"
                 else:
-                    # For FRQ, use the chat input as the answer
                     answer_to_submit = user_input
                     message = f"My answer is: {user_input}"
 
@@ -469,11 +551,18 @@ Here's how you use it in 3 simple steps:
                         st.session_state.chat_history.append(("Coach", response))
                         st.session_state.attempt_count += 1
 
-                        # Check if coach confirmed correct answer - mark as completed
                         if is_correct_response(response):
                             st.session_state.answer_is_correct = True
                             st.session_state.awaiting_explanation = True
                             st.session_state.correct_questions.add(st.session_state.current_question_idx)
+
+                            # Award coins
+                            question_key = f"{st.session_state.current_question_idx}_{current_q.number}"
+                            if st.session_state.user_id and question_key not in st.session_state.rewarded_questions:
+                                update_currency(st.session_state.user_id, 5)
+                                increment_solved_questions(st.session_state.user_id)
+                                st.session_state.rewarded_questions.add(question_key)
+                                st.toast("🪙 +5 coins!")
                     st.rerun()
                 else:
                     st.warning("Please enter an answer before submitting.")
@@ -490,20 +579,18 @@ Here's how you use it in 3 simple steps:
                     response = result["response"]
                     st.session_state.chat_history.append(("You", "Please reveal the answer"))
                     st.session_state.chat_history.append(("Coach", response))
-                    # Mark question as completed when answer is revealed
                     st.session_state.correct_questions.add(st.session_state.current_question_idx)
+                    # No coins awarded for revealed answers
                 st.rerun()
 
         with col2:
             st.subheader("💬 Chat History")
 
-            # Display chat history
             chat_container = st.container(height=500)
             with chat_container:
                 if not st.session_state.chat_history:
                     st.markdown("*Start by typing a response or question below!*")
 
-                    # Auto-start with coach greeting
                     if st.button("Start with Coach", key="start_btn"):
                         with st.spinner("Coach is ready..."):
                             problem_text = f"{current_q.text}\n\nChoices:\n" + "\n".join(current_q.choices)
@@ -527,11 +614,9 @@ Here's how you use it in 3 simple steps:
                             </div>
                             """, unsafe_allow_html=True)
 
-            # Progress info
             st.divider()
             st.markdown(f"**Attempts:** {st.session_state.attempt_count}")
 
-            # Navigation buttons
             st.divider()
             nav_col1, nav_col2 = st.columns(2)
             with nav_col1:
@@ -552,6 +637,208 @@ Here's how you use it in 3 simple steps:
                         st.session_state.answer_is_correct = False
                         st.session_state.awaiting_explanation = False
                         st.rerun()
+
+
+def show_shop_page():
+    """Display the shop page where users can buy accessories."""
+    st.subheader("🛒 Accessory Shop")
+
+    if st.session_state.user_id is None:
+        st.warning("Please sign in to use the shop! Guest mode doesn't save progress.")
+        return
+
+    user_data = get_user_data(st.session_state.user_id)
+    if not user_data:
+        st.error("Could not load user data.")
+        return
+
+    coins = user_data.get("currency", 0)
+    inventory = user_data.get("inventory", [])
+
+    st.markdown(f"### 🪙 Your Coins: **{coins}**")
+    st.markdown("Buy accessories to customize your owl!")
+
+    st.divider()
+
+    # Display accessories by slot
+    for slot in SLOTS:
+        st.markdown(f"#### {slot.title()} Items")
+        slot_items = get_accessories_by_slot(slot)
+
+        cols = st.columns(3)
+        for idx, (item_id, item) in enumerate(slot_items.items()):
+            with cols[idx % 3]:
+                owned = item_id in inventory
+
+                st.markdown(f"""
+                <div style="background-color: {'#d4edda' if owned else '#f8f9fa'}; padding: 15px;
+                            border-radius: 10px; text-align: center; margin-bottom: 10px;
+                            border: 2px solid {'#28a745' if owned else '#dee2e6'};">
+                    <div style="font-size: 40px;">{item['emoji']}</div>
+                    <div style="font-weight: bold; color: #000;">{item['name']}</div>
+                    <div style="color: #666; font-size: 12px;">{item['description']}</div>
+                    <div style="color: #ffc107; font-weight: bold;">🪙 {item['price']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if owned:
+                    st.button("✓ Owned", key=f"buy_{item_id}", disabled=True, use_container_width=True)
+                else:
+                    if st.button(f"Buy", key=f"buy_{item_id}", use_container_width=True):
+                        result = purchase_item(st.session_state.user_id, item_id, item['price'])
+                        if result["success"]:
+                            st.success(result["message"])
+                            st.rerun()
+                        else:
+                            st.error(result["message"])
+
+        st.divider()
+
+
+def show_owl_page():
+    """Display the owl customization page."""
+    st.subheader("🦉 My Owl")
+
+    if st.session_state.user_id is None:
+        st.warning("Please sign in to customize your owl! Guest mode doesn't save progress.")
+        return
+
+    user_data = get_user_data(st.session_state.user_id)
+    if not user_data:
+        st.error("Could not load user data.")
+        return
+
+    inventory = user_data.get("inventory", [])
+    equipped = user_data.get("equipped", {})
+
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        st.markdown("### Your Owl")
+
+        # Display owl with equipped items
+        st.image("mathowl.png", width=250)
+
+        # Show what's equipped
+        st.markdown("**Currently Wearing:**")
+        for slot in SLOTS:
+            item_id = equipped.get(slot)
+            if item_id:
+                item = get_accessory(item_id)
+                st.markdown(f"- **{slot.title()}:** {item.get('emoji', '')} {item.get('name', item_id)}")
+            else:
+                st.markdown(f"- **{slot.title()}:** *(empty)*")
+
+    with col2:
+        st.markdown("### Your Inventory")
+
+        if not inventory:
+            st.info("You don't have any accessories yet! Visit the shop to buy some.")
+        else:
+            for slot in SLOTS:
+                slot_items = [item_id for item_id in inventory if get_accessory(item_id).get("slot") == slot]
+                if slot_items:
+                    st.markdown(f"**{slot.title()}:**")
+                    for item_id in slot_items:
+                        item = get_accessory(item_id)
+                        is_equipped = equipped.get(slot) == item_id
+
+                        col_a, col_b = st.columns([3, 1])
+                        with col_a:
+                            st.markdown(f"{item.get('emoji', '')} {item.get('name', item_id)}")
+                        with col_b:
+                            if is_equipped:
+                                if st.button("Remove", key=f"unequip_{item_id}"):
+                                    unequip_item(st.session_state.user_id, slot)
+                                    st.rerun()
+                            else:
+                                if st.button("Equip", key=f"equip_{item_id}"):
+                                    equip_item(st.session_state.user_id, item_id, slot)
+                                    st.rerun()
+
+
+def show_profile_page():
+    """Display the user profile page."""
+    st.subheader("👤 My Profile")
+
+    if st.session_state.user_id is None:
+        st.warning("You're in guest mode. Sign in to save your progress!")
+
+        if st.button("Sign In / Create Account"):
+            st.session_state.logged_in = False
+            st.rerun()
+        return
+
+    user_data = get_user_data(st.session_state.user_id)
+    if not user_data:
+        st.error("Could not load user data.")
+        return
+
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        st.markdown("### Account Info")
+        st.markdown(f"**Name:** {user_data.get('name', 'Unknown')}")
+        st.markdown(f"**Email:** {user_data.get('email', 'Unknown')}")
+
+        st.divider()
+
+        if st.button("Sign Out"):
+            st.session_state.logged_in = False
+            st.session_state.user_id = None
+            st.session_state.user_name = ""
+            st.session_state.rewarded_questions = set()
+            st.rerun()
+
+    with col2:
+        st.markdown("### Stats")
+
+        coins = user_data.get("currency", 0)
+        solved = user_data.get("solved_questions", 0)
+        inventory_count = len(user_data.get("inventory", []))
+
+        st.metric("🪙 Coins", coins)
+        st.metric("✅ Questions Solved", solved)
+        st.metric("🎒 Items Owned", inventory_count)
+
+
+def main():
+    """Main Streamlit application."""
+    st.set_page_config(
+        page_title="Math Stan",
+        page_icon="📐",
+        layout="wide"
+    )
+
+    init_session_state()
+
+    # Check if Firebase is available
+    if not FIREBASE_AVAILABLE:
+        st.error("Firebase modules not loaded. Please check your installation.")
+        return
+
+    # Show login page if not logged in
+    if not st.session_state.logged_in:
+        show_login_page()
+        return
+
+    # Show header with coins
+    show_header_with_coins()
+
+    # Navigation tabs
+    tab1, tab2, tab3, tab4 = st.tabs(["📝 Practice", "🛒 Shop", "🦉 My Owl", "👤 Profile"])
+
+    with tab1:
+        show_practice_page()
+
+    with tab2:
+        show_shop_page()
+
+    with tab3:
+        show_owl_page()
+
+    with tab4:
+        show_profile_page()
 
 
 if __name__ == "__main__":
