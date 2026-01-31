@@ -149,13 +149,15 @@ def get_sample_questions() -> List[Question]:
 
 def init_session_state():
     """Initialize Streamlit session state variables."""
-    # Authentication state
+    # Authentication state - default to guest mode (logged in but no user_id)
     if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
+        st.session_state.logged_in = True  # Auto-login as guest
     if "user_id" not in st.session_state:
-        st.session_state.user_id = None
+        st.session_state.user_id = None  # None = guest mode
     if "user_name" not in st.session_state:
-        st.session_state.user_name = ""
+        st.session_state.user_name = "Guest"
+    if "show_login_modal" not in st.session_state:
+        st.session_state.show_login_modal = False
 
     # Question state
     if "questions" not in st.session_state:
@@ -311,13 +313,69 @@ def show_login_page():
             st.rerun()
 
 
+@st.dialog("Sign In to Math Stan")
+def show_login_modal():
+    """Display login/signup modal dialog."""
+    tab1, tab2 = st.tabs(["Sign In", "Sign Up"])
+
+    with tab1:
+        login_email = st.text_input("Email", key="modal_login_email")
+        login_password = st.text_input("Password", type="password", key="modal_login_password")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Sign In", type="primary", use_container_width=True):
+                if login_email and login_password:
+                    result = sign_in(login_email, login_password)
+                    if result["success"]:
+                        st.session_state.user_id = result["user_id"]
+                        user_data = get_user_data(result["user_id"])
+                        if user_data:
+                            st.session_state.user_name = user_data.get("name", "Student")
+                        st.session_state.show_login_modal = False
+                        st.rerun()
+                    else:
+                        st.error(result["message"])
+                else:
+                    st.warning("Please enter email and password.")
+        with col2:
+            if st.button("Cancel", use_container_width=True):
+                st.session_state.show_login_modal = False
+                st.rerun()
+
+    with tab2:
+        signup_name = st.text_input("Your Name", key="modal_signup_name")
+        signup_email = st.text_input("Email", key="modal_signup_email")
+        signup_password = st.text_input("Password", type="password", key="modal_signup_password",
+                                        help="At least 6 characters")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Create Account", type="primary", use_container_width=True):
+                if signup_name and signup_email and signup_password:
+                    result = sign_up(signup_email, signup_password, signup_name)
+                    if result["success"]:
+                        st.session_state.user_id = result["user_id"]
+                        st.session_state.user_name = signup_name
+                        st.session_state.show_login_modal = False
+                        st.rerun()
+                    else:
+                        st.error(result["message"])
+                else:
+                    st.warning("Please fill in all fields.")
+        with col2:
+            if st.button("Cancel", use_container_width=True, key="cancel_signup"):
+                st.session_state.show_login_modal = False
+                st.rerun()
+
+
 def show_header_with_fish():
     """Display header with fish count for logged-in users."""
     user_data = None
     if st.session_state.user_id:
         user_data = get_user_data(st.session_state.user_id)
 
-    header_col1, header_col2, header_col3 = st.columns([5, 1, 2])
+    header_col1, header_col2, header_col3, header_col4 = st.columns([5, 1, 1, 2])
 
     with header_col1:
         st.title("📐 Math Stan")
@@ -339,10 +397,21 @@ Here's how you use it in 5 simple steps:
                 <strong>🐟 {fish}</strong>
             </div>
             """, unsafe_allow_html=True)
-        elif st.session_state.user_id is None:
-            st.caption("Guest Mode")
 
     with header_col3:
+        # Show Sign In button for guests, Sign Out for logged in users
+        if st.session_state.user_id is None:
+            if st.button("Sign In", key="header_signin"):
+                st.session_state.show_login_modal = True
+                st.rerun()
+        else:
+            if st.button("Sign Out", key="header_signout"):
+                st.session_state.user_id = None
+                st.session_state.user_name = "Guest"
+                st.session_state.rewarded_questions = set()
+                st.rerun()
+
+    with header_col4:
         st.image("mathowl.png", width=160)
 
 
@@ -833,10 +902,9 @@ def main():
         st.info("Required variables: FIREBASE_APIKEY, FIREBASE_AUTHDOMAIN, FIREBASE_DATABASEURL, FIREBASE_PROJECTID, FIREBASE_STORAGEBUCKET, FIREBASE_MESSAGINGSENDERID, FIREBASE_APPID")
         return
 
-    # Show login page if not logged in
-    if not st.session_state.logged_in:
-        show_login_page()
-        return
+    # Show login modal if requested
+    if st.session_state.show_login_modal:
+        show_login_modal()
 
     # Show header with fish
     show_header_with_fish()
