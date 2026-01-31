@@ -8,6 +8,10 @@ import asyncio
 import re
 from typing import List, Optional
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+# Cookie manager for persistent login
+import extra_streamlit_components as stx
 
 # Import LlamaParse-based parser for text extraction
 try:
@@ -145,6 +149,43 @@ def get_sample_questions() -> List[Question]:
             page=1
         ),
     ]
+
+
+@st.cache_resource
+def get_cookie_manager():
+    """Get cookie manager instance (cached)."""
+    return stx.CookieManager()
+
+
+def check_saved_login():
+    """Check if user has a saved login cookie and restore session."""
+    cookie_manager = get_cookie_manager()
+    saved_user_id = cookie_manager.get("math_stan_user_id")
+
+    if saved_user_id and st.session_state.user_id is None:
+        # Restore session from cookie
+        st.session_state.user_id = saved_user_id
+        user_data = get_user_data(saved_user_id)
+        if user_data:
+            st.session_state.user_name = user_data.get("name", "Student")
+        else:
+            # Invalid user_id in cookie, clear it
+            cookie_manager.delete("math_stan_user_id")
+            st.session_state.user_id = None
+            st.session_state.user_name = "Guest"
+
+
+def save_login_cookie(user_id: str):
+    """Save user_id to cookie for 1 day."""
+    cookie_manager = get_cookie_manager()
+    expires = datetime.now() + timedelta(days=1)
+    cookie_manager.set("math_stan_user_id", user_id, expires_at=expires)
+
+
+def clear_login_cookie():
+    """Clear the login cookie on sign out."""
+    cookie_manager = get_cookie_manager()
+    cookie_manager.delete("math_stan_user_id")
 
 
 def init_session_state():
@@ -332,6 +373,7 @@ def show_login_modal():
                         user_data = get_user_data(result["user_id"])
                         if user_data:
                             st.session_state.user_name = user_data.get("name", "Student")
+                        save_login_cookie(result["user_id"])  # Save to cookie
                         st.session_state.show_login_modal = False
                         st.rerun()
                     else:
@@ -357,6 +399,7 @@ def show_login_modal():
                     if result["success"]:
                         st.session_state.user_id = result["user_id"]
                         st.session_state.user_name = signup_name
+                        save_login_cookie(result["user_id"])  # Save to cookie
                         st.session_state.show_login_modal = False
                         st.rerun()
                     else:
@@ -375,7 +418,7 @@ def show_header_with_fish():
     if st.session_state.user_id:
         user_data = get_user_data(st.session_state.user_id)
 
-    header_col1, header_col2, header_col3, header_col4 = st.columns([5, 1, 1, 2])
+    header_col1, header_col2, header_col3, header_col4 = st.columns([5, 1, 2, 1])
 
     with header_col1:
         st.title("📐 Math Stan")
@@ -399,6 +442,9 @@ Here's how you use it in 5 simple steps:
             """, unsafe_allow_html=True)
 
     with header_col3:
+        st.image("mathowl.png", width=160)
+
+    with header_col4:
         # Show Sign In button for guests, Sign Out for logged in users
         if st.session_state.user_id is None:
             if st.button("Sign In", key="header_signin"):
@@ -406,13 +452,11 @@ Here's how you use it in 5 simple steps:
                 st.rerun()
         else:
             if st.button("Sign Out", key="header_signout"):
+                clear_login_cookie()
                 st.session_state.user_id = None
                 st.session_state.user_name = "Guest"
                 st.session_state.rewarded_questions = set()
                 st.rerun()
-
-    with header_col4:
-        st.image("mathowl.png", width=160)
 
 
 def show_practice_page():
@@ -888,6 +932,9 @@ def main():
     )
 
     init_session_state()
+
+    # Check for saved login cookie
+    check_saved_login()
 
     # Check if Firebase is available
     if not FIREBASE_AVAILABLE:
