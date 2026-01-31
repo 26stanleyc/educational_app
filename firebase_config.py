@@ -10,7 +10,20 @@ from typing import Optional, Dict, List, Any
 
 def get_firebase_config() -> Dict[str, str]:
     """Get Firebase configuration from Streamlit secrets or environment variables."""
-    # Try Streamlit secrets first (local development)
+    # Try environment variables first (Railway deployment)
+    api_key = os.environ.get("FIREBASE_APIKEY")
+    if api_key:
+        return {
+            "apiKey": api_key,
+            "authDomain": os.environ.get("FIREBASE_AUTHDOMAIN", ""),
+            "databaseURL": os.environ.get("FIREBASE_DATABASEURL", ""),
+            "projectId": os.environ.get("FIREBASE_PROJECTID", ""),
+            "storageBucket": os.environ.get("FIREBASE_STORAGEBUCKET", ""),
+            "messagingSenderId": os.environ.get("FIREBASE_MESSAGINGSENDERID", ""),
+            "appId": os.environ.get("FIREBASE_APPID", ""),
+        }
+
+    # Try Streamlit secrets (local development)
     try:
         return {
             "apiKey": st.secrets["firebase"]["apiKey"],
@@ -24,20 +37,7 @@ def get_firebase_config() -> Dict[str, str]:
     except Exception:
         pass
 
-    # Fall back to environment variables (Railway deployment)
-    api_key = os.environ.get("FIREBASE_APIKEY")
-    if api_key:
-        return {
-            "apiKey": api_key,
-            "authDomain": os.environ.get("FIREBASE_AUTHDOMAIN", ""),
-            "databaseURL": os.environ.get("FIREBASE_DATABASEURL", ""),
-            "projectId": os.environ.get("FIREBASE_PROJECTID", ""),
-            "storageBucket": os.environ.get("FIREBASE_STORAGEBUCKET", ""),
-            "messagingSenderId": os.environ.get("FIREBASE_MESSAGINGSENDERID", ""),
-            "appId": os.environ.get("FIREBASE_APPID", ""),
-        }
-
-    st.error("Firebase configuration not found. Please set up secrets or environment variables.")
+    # No config found
     return {}
 
 
@@ -45,9 +45,13 @@ def get_firebase_config() -> Dict[str, str]:
 def init_firebase():
     """Initialize Firebase app. Cached to avoid re-initialization."""
     config = get_firebase_config()
-    if not config:
+    if not config or not config.get("apiKey"):
         return None
-    return pyrebase.initialize_app(config)
+    try:
+        return pyrebase.initialize_app(config)
+    except Exception as e:
+        print(f"Firebase initialization error: {e}")
+        return None
 
 
 def get_auth():

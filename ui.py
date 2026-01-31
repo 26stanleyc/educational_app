@@ -817,6 +817,14 @@ def main():
         st.error("Firebase modules not loaded. Please check your installation.")
         return
 
+    # Check if Firebase is configured (for Railway deployment)
+    from firebase_config import get_firebase_config
+    config = get_firebase_config()
+    if not config or not config.get("apiKey"):
+        st.error("Firebase not configured. Please add FIREBASE_APIKEY and other Firebase environment variables in Railway.")
+        st.info("Required variables: FIREBASE_APIKEY, FIREBASE_AUTHDOMAIN, FIREBASE_DATABASEURL, FIREBASE_PROJECTID, FIREBASE_STORAGEBUCKET, FIREBASE_MESSAGINGSENDERID, FIREBASE_APPID")
+        return
+
     # Show login page if not logged in
     if not st.session_state.logged_in:
         show_login_page()
