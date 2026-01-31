@@ -317,7 +317,7 @@ def show_header_with_fish():
     if st.session_state.user_id:
         user_data = get_user_data(st.session_state.user_id)
 
-    header_col1, header_col2, header_col3 = st.columns([3, 1, 1])
+    header_col1, header_col2, header_col3 = st.columns([5, 1, 2])
 
     with header_col1:
         st.title("📐 Math Stan")
@@ -334,8 +334,8 @@ Here's how you use it in 5 simple steps:
         if user_data:
             fish = user_data.get("currency", 0)
             st.markdown(f"""
-            <div style="background-color: #87CEEB; padding: 10px 15px; border-radius: 20px;
-                        text-align: center; margin-top: 15px; color: #000;">
+            <div style="background-color: #87CEEB; padding: 8px 12px; border-radius: 20px;
+                        text-align: center; margin-top: 15px; color: #000; white-space: nowrap;">
                 <strong>🐟 {fish}</strong>
             </div>
             """, unsafe_allow_html=True)
@@ -343,7 +343,7 @@ Here's how you use it in 5 simple steps:
             st.caption("Guest Mode")
 
     with header_col3:
-        st.image("mathowl.png", width=80)
+        st.image("mathowl.png", width=160)
 
 
 def show_practice_page():
