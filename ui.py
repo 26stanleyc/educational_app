@@ -6,6 +6,7 @@ A basic web interface for the tutoring application with gamification features.
 import streamlit as st
 import asyncio
 import re
+import json
 from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -153,36 +154,42 @@ def get_sample_questions() -> List[Question]:
 
 def check_saved_login(cookie_manager):
     """Check if user has a saved login cookie and restore session."""
-    saved_user_id = cookie_manager.get("math_stan_user_id")
-    saved_token = cookie_manager.get("math_stan_token")
+    saved_session = cookie_manager.get("math_stan_session")
 
-    if saved_user_id and saved_token and st.session_state.user_id is None:
-        # Try to restore session from cookie
-        user_data = get_user_data(saved_user_id, token=saved_token)
-        if user_data:
-            st.session_state.user_id = saved_user_id
-            st.session_state.id_token = saved_token
-            st.session_state.user_name = user_data.get("name", "Student")
-        else:
-            # Token expired or invalid, clear cookies
-            cookie_manager.delete("math_stan_user_id")
-            cookie_manager.delete("math_stan_token")
-            st.session_state.user_id = None
-            st.session_state.id_token = None
-            st.session_state.user_name = "Guest"
+    if saved_session and st.session_state.user_id is None:
+        try:
+            session_data = json.loads(saved_session)
+            saved_user_id = session_data.get("user_id")
+            saved_token = session_data.get("id_token")
+
+            if saved_user_id and saved_token:
+                # Try to restore session from cookie
+                user_data = get_user_data(saved_user_id, token=saved_token)
+                if user_data:
+                    st.session_state.user_id = saved_user_id
+                    st.session_state.id_token = saved_token
+                    st.session_state.user_name = user_data.get("name", "Student")
+                    return
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Token expired or invalid, clear cookie
+        cookie_manager.delete("math_stan_session")
+        st.session_state.user_id = None
+        st.session_state.id_token = None
+        st.session_state.user_name = "Guest"
 
 
 def save_login_cookie(cookie_manager, user_id: str, id_token: str):
-    """Save user_id and token to cookies for 1 day."""
+    """Save user_id and token to a single cookie for 1 day."""
     expires = datetime.now() + timedelta(days=1)
-    cookie_manager.set("math_stan_user_id", user_id, expires_at=expires)
-    cookie_manager.set("math_stan_token", id_token, expires_at=expires)
+    session_data = json.dumps({"user_id": user_id, "id_token": id_token})
+    cookie_manager.set("math_stan_session", session_data, expires_at=expires)
 
 
 def clear_login_cookie(cookie_manager):
-    """Clear the login cookies on sign out."""
-    cookie_manager.delete("math_stan_user_id")
-    cookie_manager.delete("math_stan_token")
+    """Clear the login cookie on sign out."""
+    cookie_manager.delete("math_stan_session")
 
 
 def init_session_state():
