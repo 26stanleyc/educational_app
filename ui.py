@@ -1064,35 +1064,49 @@ def main():
             background-color: #E8D4BC;
         }
 
-        /* All buttons - darker tan with border */
+        /* All buttons - blue */
         .stButton > button {
-            background-color: #DEC8A8;
-            border: 1px solid #C9B393;
-            color: #333333;
+            background-color: #4A90D9;
+            border: 1px solid #3A7BC8;
+            color: white;
         }
 
         .stButton > button:hover {
-            background-color: #D4BC96;
-            border: 1px solid #B8A482;
-            color: #333333;
+            background-color: #3A7BC8;
+            border: 1px solid #2A6BB8;
+            color: white;
         }
 
         /* Primary buttons (like Sign In, Parse Image) */
         .stButton > button[kind="primary"] {
-            background-color: #C9B393;
-            border: 1px solid #B8A482;
-            color: #333333;
+            background-color: #2E7DD1;
+            border: 1px solid #1E6DC1;
+            color: white;
         }
 
         .stButton > button[kind="primary"]:hover {
-            background-color: #B8A482;
-            border: 1px solid #A89372;
-            color: #333333;
+            background-color: #1E6DC1;
+            border: 1px solid #0E5DB1;
+            color: white;
         }
 
-        /* File uploader */
+        /* File uploader - light blue */
         [data-testid="stFileUploader"] {
-            background-color: #EDD9C4;
+            background-color: #E3F2FD;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        /* Text inputs - light blue */
+        .stTextInput > div > div > input {
+            background-color: #E3F2FD;
+            border: 1px solid #90CAF9;
+        }
+
+        /* Text area - light blue */
+        .stTextArea > div > div > textarea {
+            background-color: #E3F2FD;
+            border: 1px solid #90CAF9;
         }
 
         /* Keep text readable */
