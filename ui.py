@@ -8,9 +8,12 @@ import asyncio
 import re
 import json
 import base64
+import os
+from io import BytesIO
 from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from PIL import Image
 
 # Cookie manager for persistent login
 import extra_streamlit_components as stx
@@ -835,36 +838,88 @@ def show_shop_page():
         st.divider()
 
 
-def get_owl_base64():
-    """Get owl image as base64 string for embedding in HTML."""
-    with open("mathowl.png", "rb") as f:
-        return base64.b64encode(f.read()).decode()
+# Accessory position offsets (x, y) relative to owl image
+# These will need adjustment based on your accessory images
+ACCESSORY_POSITIONS = {
+    # Head items - positioned above/on the owl's head
+    "grad_cap": (65, -20),
+    "crown": (75, -15),
+    "wizard_hat": (60, -30),
+    "party_hat": (85, -25),
+    "detective_hat": (65, -10),
+    # Eye items - positioned over the eyes
+    "sunglasses": (55, 70),
+    "nerdy_glasses": (55, 70),
+    "star_glasses": (55, 65),
+    # Neck items - positioned on chest/neck
+    "bow_tie": (95, 160),
+    "scarf": (60, 140),
+    "medal": (90, 155),
+    # Back items - positioned behind/beside the owl
+    "cape": (-20, 80),
+    "wings": (-30, 50),
+    "backpack": (180, 100),
+}
 
 
-def render_owl_with_accessories(equipped: dict) -> str:
-    """Generate HTML for owl with positioned accessory emojis."""
-    owl_base64 = get_owl_base64()
+def render_owl_with_accessories(equipped: dict) -> Image.Image:
+    """Composite owl image with equipped accessory images using Pillow."""
+    # Load base owl image
+    owl = Image.open("mathowl.png").convert("RGBA")
 
-    # Get emoji for each equipped slot
-    head_emoji = get_accessory(equipped.get("head", "")).get("emoji", "") if equipped.get("head") else ""
-    eyes_emoji = get_accessory(equipped.get("eyes", "")).get("emoji", "") if equipped.get("eyes") else ""
-    neck_emoji = get_accessory(equipped.get("neck", "")).get("emoji", "") if equipped.get("neck") else ""
-    back_emoji = get_accessory(equipped.get("back", "")).get("emoji", "") if equipped.get("back") else ""
+    # Create a larger canvas to allow accessories to extend beyond owl bounds
+    canvas_size = (owl.width + 100, owl.height + 100)
+    canvas = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
 
-    html = f"""
-    <div style="position: relative; width: 250px; height: 280px;">
-        <img src="data:image/png;base64,{owl_base64}" style="width: 250px;">
-        <!-- Head accessory - above head -->
-        <div style="position: absolute; top: -10px; left: 105px; font-size: 40px;">{head_emoji}</div>
-        <!-- Eyes accessory - over eyes -->
-        <div style="position: absolute; top: 80px; left: 95px; font-size: 35px;">{eyes_emoji}</div>
-        <!-- Neck accessory - on neck/chest -->
-        <div style="position: absolute; top: 150px; left: 105px; font-size: 35px;">{neck_emoji}</div>
-        <!-- Back accessory - behind/side -->
-        <div style="position: absolute; top: 60px; left: 180px; font-size: 35px;">{back_emoji}</div>
-    </div>
-    """
-    return html
+    # Offset to center owl on canvas
+    owl_offset = (50, 50)
+    canvas.paste(owl, owl_offset, owl)
+
+    # Layer accessories in order: back items first, then others
+    layer_order = ["back", "neck", "eyes", "head"]
+
+    for slot in layer_order:
+        item_id = equipped.get(slot)
+        if item_id:
+            accessory_path = f"accessories/{item_id}.png"
+            if os.path.exists(accessory_path):
+                accessory = Image.open(accessory_path).convert("RGBA")
+
+                # Get position offset for this accessory
+                pos = ACCESSORY_POSITIONS.get(item_id, (0, 0))
+                # Apply offset relative to owl position on canvas
+                final_pos = (owl_offset[0] + pos[0], owl_offset[1] + pos[1])
+
+                # Paste accessory with transparency
+                canvas.paste(accessory, final_pos, accessory)
+
+    # Crop canvas to remove excess transparent area
+    bbox = canvas.getbbox()
+    if bbox:
+        canvas = canvas.crop(bbox)
+
+    return canvas
+
+
+def get_owl_image_base64(equipped: dict) -> str:
+    """Get the composited owl image as base64 for display."""
+    # Check if any accessory images exist
+    has_accessory_images = any(
+        os.path.exists(f"accessories/{item_id}.png")
+        for item_id in equipped.values()
+        if item_id
+    )
+
+    if has_accessory_images:
+        # Use Pillow compositing
+        img = render_owl_with_accessories(equipped)
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode()
+    else:
+        # Fall back to plain owl image
+        with open("mathowl.png", "rb") as f:
+            return base64.b64encode(f.read()).decode()
 
 
 def show_owl_page():
@@ -889,8 +944,11 @@ def show_owl_page():
         st.markdown("### Your Owl")
 
         # Display owl with equipped items
-        owl_html = render_owl_with_accessories(equipped)
-        st.markdown(owl_html, unsafe_allow_html=True)
+        owl_base64 = get_owl_image_base64(equipped)
+        st.markdown(
+            f'<img src="data:image/png;base64,{owl_base64}" style="max-width: 250px;">',
+            unsafe_allow_html=True
+        )
 
         # Show what's equipped
         st.markdown("**Currently Wearing:**")
