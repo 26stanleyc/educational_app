@@ -1046,6 +1046,26 @@ def main():
         layout="wide"
     )
 
+    # Custom CSS for tan background colors
+    st.markdown("""
+        <style>
+        /* Main content area - light tan */
+        .stApp {
+            background-color: #F5E6D3;
+        }
+
+        /* Sidebar - slightly darker tan */
+        [data-testid="stSidebar"] {
+            background-color: #E8D4BC;
+        }
+
+        /* Keep text readable */
+        .stApp, [data-testid="stSidebar"] {
+            color: #333333;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     init_session_state()
 
     # Initialize cookie manager and check for saved login
