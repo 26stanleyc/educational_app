@@ -146,7 +146,7 @@ def get_sample_questions() -> List[Question]:
                 "(3) -4",
                 "(4) 4"
             ],
-            correct_answer=4,
+            correct_answer=2,
             page=1
         ),
     ]
