@@ -1064,49 +1064,49 @@ def main():
             background-color: #E8D4BC;
         }
 
-        /* All buttons - blue */
+        /* All buttons - light blue */
         .stButton > button {
-            background-color: #4A90D9;
-            border: 1px solid #3A7BC8;
-            color: white;
+            background-color: #E8F4FC;
+            border: 1px solid #C5DCE8;
+            color: #333333;
         }
 
         .stButton > button:hover {
-            background-color: #3A7BC8;
-            border: 1px solid #2A6BB8;
-            color: white;
+            background-color: #D6EAF5;
+            border: 1px solid #A8CCDC;
+            color: #333333;
         }
 
         /* Primary buttons (like Sign In, Parse Image) */
         .stButton > button[kind="primary"] {
-            background-color: #2E7DD1;
-            border: 1px solid #1E6DC1;
-            color: white;
+            background-color: #D6EAF5;
+            border: 1px solid #A8CCDC;
+            color: #333333;
         }
 
         .stButton > button[kind="primary"]:hover {
-            background-color: #1E6DC1;
-            border: 1px solid #0E5DB1;
-            color: white;
+            background-color: #C5DCE8;
+            border: 1px solid #90CAD4;
+            color: #333333;
         }
 
         /* File uploader - light blue */
         [data-testid="stFileUploader"] {
-            background-color: #E3F2FD;
+            background-color: #E8F4FC;
             border-radius: 8px;
             padding: 10px;
         }
 
-        /* Text inputs - light blue */
+        /* Text inputs - white */
         .stTextInput > div > div > input {
-            background-color: #E3F2FD;
-            border: 1px solid #90CAF9;
+            background-color: #FFFFFF;
+            border: 1px solid #CCCCCC;
         }
 
-        /* Text area - light blue */
+        /* Text area - white */
         .stTextArea > div > div > textarea {
-            background-color: #E3F2FD;
-            border: 1px solid #90CAF9;
+            background-color: #FFFFFF;
+            border: 1px solid #CCCCCC;
         }
 
         /* Keep text readable */
