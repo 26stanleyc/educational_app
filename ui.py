@@ -941,22 +941,15 @@ def show_owl_page():
     with col1:
         st.markdown("### Your Owl")
 
+        # Add spacing to move owl down
+        st.markdown("<br>", unsafe_allow_html=True)
+
         # Display owl with equipped items
         owl_base64 = get_owl_image_base64(equipped)
         st.markdown(
             f'<img src="data:image/png;base64,{owl_base64}" style="max-width: 250px;">',
             unsafe_allow_html=True
         )
-
-        # Show what's equipped
-        st.markdown("**Currently Wearing:**")
-        for slot in SLOTS:
-            item_id = equipped.get(slot)
-            if item_id:
-                item = get_accessory(item_id)
-                st.markdown(f"- **{slot.title()}:** {item.get('emoji', '')} {item.get('name', item_id)}")
-            else:
-                st.markdown(f"- **{slot.title()}:** *(empty)*")
 
     with col2:
         st.markdown("### Your Inventory")
@@ -984,6 +977,18 @@ def show_owl_page():
                                 if st.button("Equip", key=f"equip_{item_id}"):
                                     equip_item(st.session_state.user_id, item_id, slot, token=st.session_state.id_token)
                                     st.rerun()
+
+        st.divider()
+
+        # Show what's equipped
+        st.markdown("**Currently Wearing:**")
+        for slot in SLOTS:
+            item_id = equipped.get(slot)
+            if item_id:
+                item = get_accessory(item_id)
+                st.markdown(f"- **{slot.title()}:** {item.get('emoji', '')} {item.get('name', item_id)}")
+            else:
+                st.markdown(f"- **{slot.title()}:** *(empty)*")
 
 
 def show_profile_page():
