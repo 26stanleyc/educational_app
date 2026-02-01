@@ -1059,6 +1059,42 @@ def main():
             background-color: #E8D4BC;
         }
 
+        /* Top header bar */
+        header[data-testid="stHeader"] {
+            background-color: #E8D4BC;
+        }
+
+        /* All buttons - darker tan with border */
+        .stButton > button {
+            background-color: #DEC8A8;
+            border: 1px solid #C9B393;
+            color: #333333;
+        }
+
+        .stButton > button:hover {
+            background-color: #D4BC96;
+            border: 1px solid #B8A482;
+            color: #333333;
+        }
+
+        /* Primary buttons (like Sign In, Parse Image) */
+        .stButton > button[kind="primary"] {
+            background-color: #C9B393;
+            border: 1px solid #B8A482;
+            color: #333333;
+        }
+
+        .stButton > button[kind="primary"]:hover {
+            background-color: #B8A482;
+            border: 1px solid #A89372;
+            color: #333333;
+        }
+
+        /* File uploader */
+        [data-testid="stFileUploader"] {
+            background-color: #EDD9C4;
+        }
+
         /* Keep text readable */
         .stApp, [data-testid="stSidebar"] {
             color: #333333;
