@@ -924,8 +924,6 @@ def get_owl_image_base64(equipped: dict) -> str:
 
 def show_owl_page():
     """Display the owl customization page."""
-    st.subheader("🦉 My Owl")
-
     if st.session_state.user_id is None or st.session_state.id_token is None:
         st.warning("Please sign in to customize your owl! Guest mode doesn't save progress.")
         return
