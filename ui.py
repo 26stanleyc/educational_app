@@ -458,6 +458,7 @@ Here's how you use it in 5 simple steps:
                 if "cookie_manager" in st.session_state:
                     clear_login_cookie(st.session_state.cookie_manager)
                 st.session_state.user_id = None
+                st.session_state.id_token = None
                 st.session_state.user_name = "Guest"
                 st.session_state.rewarded_questions = set()
                 st.rerun()
@@ -908,10 +909,12 @@ def show_profile_page():
 
         st.divider()
 
-        if st.button("Sign Out"):
-            st.session_state.logged_in = False
+        if st.button("Sign Out", key="profile_signout"):
+            if "cookie_manager" in st.session_state:
+                clear_login_cookie(st.session_state.cookie_manager)
             st.session_state.user_id = None
-            st.session_state.user_name = ""
+            st.session_state.id_token = None
+            st.session_state.user_name = "Guest"
             st.session_state.rewarded_questions = set()
             st.rerun()
 
