@@ -88,7 +88,7 @@ def sign_up(email: str, password: str, name: str) -> Dict[str, Any]:
         user = auth.create_user_with_email_and_password(email, password)
         user_id = user['localId']
 
-        # Initialize user data in database
+        # Initialize user data in database (use token for authenticated write)
         user_data = {
             "name": name,
             "email": email,
@@ -102,7 +102,7 @@ def sign_up(email: str, password: str, name: str) -> Dict[str, Any]:
                 "back": None
             }
         }
-        db.child("users").child(user_id).set(user_data)
+        db.child("users").child(user_id).set(user_data, token=user['idToken'])
 
         return {
             "success": True,
@@ -150,21 +150,21 @@ def sign_in(email: str, password: str) -> Dict[str, Any]:
         return {"success": False, "user_id": None, "message": f"Sign in failed: {error_msg}"}
 
 
-def get_user_data(user_id: str) -> Optional[Dict[str, Any]]:
+def get_user_data(user_id: str, token: str = None) -> Optional[Dict[str, Any]]:
     """Fetch user profile data from database."""
     db = get_db()
     if not db:
         return None
 
     try:
-        data = db.child("users").child(user_id).get()
+        data = db.child("users").child(user_id).get(token=token)
         return data.val()
     except Exception as e:
         print(f"Error fetching user data: {e}")
         return None
 
 
-def update_currency(user_id: str, amount: int) -> bool:
+def update_currency(user_id: str, amount: int, token: str = None) -> bool:
     """Add fish to user's balance."""
     db = get_db()
     if not db:
@@ -172,40 +172,40 @@ def update_currency(user_id: str, amount: int) -> bool:
 
     try:
         # Get current currency
-        current_data = get_user_data(user_id)
+        current_data = get_user_data(user_id, token=token)
         if current_data is None:
             return False
 
         current_currency = current_data.get("currency", 0)
         new_currency = current_currency + amount
 
-        db.child("users").child(user_id).update({"currency": new_currency})
+        db.child("users").child(user_id).update({"currency": new_currency}, token=token)
         return True
     except Exception as e:
         print(f"Error updating currency: {e}")
         return False
 
 
-def increment_solved_questions(user_id: str) -> bool:
+def increment_solved_questions(user_id: str, token: str = None) -> bool:
     """Increment the count of solved questions."""
     db = get_db()
     if not db:
         return False
 
     try:
-        current_data = get_user_data(user_id)
+        current_data = get_user_data(user_id, token=token)
         if current_data is None:
             return False
 
         current_count = current_data.get("solved_questions", 0)
-        db.child("users").child(user_id).update({"solved_questions": current_count + 1})
+        db.child("users").child(user_id).update({"solved_questions": current_count + 1}, token=token)
         return True
     except Exception as e:
         print(f"Error incrementing solved questions: {e}")
         return False
 
 
-def purchase_item(user_id: str, item_id: str, price: int) -> Dict[str, Any]:
+def purchase_item(user_id: str, item_id: str, price: int, token: str = None) -> Dict[str, Any]:
     """
     Purchase an accessory from the shop.
 
@@ -217,7 +217,7 @@ def purchase_item(user_id: str, item_id: str, price: int) -> Dict[str, Any]:
         return {"success": False, "message": "Database not available"}
 
     try:
-        user_data = get_user_data(user_id)
+        user_data = get_user_data(user_id, token=token)
         if user_data is None:
             return {"success": False, "message": "User not found"}
 
@@ -239,21 +239,21 @@ def purchase_item(user_id: str, item_id: str, price: int) -> Dict[str, Any]:
         db.child("users").child(user_id).update({
             "currency": new_currency,
             "inventory": inventory
-        })
+        }, token=token)
 
         return {"success": True, "message": "Item purchased!"}
     except Exception as e:
         return {"success": False, "message": f"Purchase failed: {e}"}
 
 
-def equip_item(user_id: str, item_id: str, slot: str) -> bool:
+def equip_item(user_id: str, item_id: str, slot: str, token: str = None) -> bool:
     """Equip an accessory to the owl."""
     db = get_db()
     if not db:
         return False
 
     try:
-        user_data = get_user_data(user_id)
+        user_data = get_user_data(user_id, token=token)
         if user_data is None:
             return False
 
@@ -266,28 +266,28 @@ def equip_item(user_id: str, item_id: str, slot: str) -> bool:
         equipped = user_data.get("equipped", {})
         equipped[slot] = item_id
 
-        db.child("users").child(user_id).update({"equipped": equipped})
+        db.child("users").child(user_id).update({"equipped": equipped}, token=token)
         return True
     except Exception as e:
         print(f"Error equipping item: {e}")
         return False
 
 
-def unequip_item(user_id: str, slot: str) -> bool:
+def unequip_item(user_id: str, slot: str, token: str = None) -> bool:
     """Remove an accessory from the owl."""
     db = get_db()
     if not db:
         return False
 
     try:
-        user_data = get_user_data(user_id)
+        user_data = get_user_data(user_id, token=token)
         if user_data is None:
             return False
 
         equipped = user_data.get("equipped", {})
         equipped[slot] = None
 
-        db.child("users").child(user_id).update({"equipped": equipped})
+        db.child("users").child(user_id).update({"equipped": equipped}, token=token)
         return True
     except Exception as e:
         print(f"Error unequipping item: {e}")

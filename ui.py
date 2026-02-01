@@ -154,29 +154,35 @@ def get_sample_questions() -> List[Question]:
 def check_saved_login(cookie_manager):
     """Check if user has a saved login cookie and restore session."""
     saved_user_id = cookie_manager.get("math_stan_user_id")
+    saved_token = cookie_manager.get("math_stan_token")
 
-    if saved_user_id and st.session_state.user_id is None:
-        # Restore session from cookie
-        st.session_state.user_id = saved_user_id
-        user_data = get_user_data(saved_user_id)
+    if saved_user_id and saved_token and st.session_state.user_id is None:
+        # Try to restore session from cookie
+        user_data = get_user_data(saved_user_id, token=saved_token)
         if user_data:
+            st.session_state.user_id = saved_user_id
+            st.session_state.id_token = saved_token
             st.session_state.user_name = user_data.get("name", "Student")
         else:
-            # Invalid user_id in cookie, clear it
+            # Token expired or invalid, clear cookies
             cookie_manager.delete("math_stan_user_id")
+            cookie_manager.delete("math_stan_token")
             st.session_state.user_id = None
+            st.session_state.id_token = None
             st.session_state.user_name = "Guest"
 
 
-def save_login_cookie(cookie_manager, user_id: str):
-    """Save user_id to cookie for 1 day."""
+def save_login_cookie(cookie_manager, user_id: str, id_token: str):
+    """Save user_id and token to cookies for 1 day."""
     expires = datetime.now() + timedelta(days=1)
     cookie_manager.set("math_stan_user_id", user_id, expires_at=expires)
+    cookie_manager.set("math_stan_token", id_token, expires_at=expires)
 
 
 def clear_login_cookie(cookie_manager):
-    """Clear the login cookie on sign out."""
+    """Clear the login cookies on sign out."""
     cookie_manager.delete("math_stan_user_id")
+    cookie_manager.delete("math_stan_token")
 
 
 def init_session_state():
@@ -186,6 +192,8 @@ def init_session_state():
         st.session_state.logged_in = True  # Auto-login as guest
     if "user_id" not in st.session_state:
         st.session_state.user_id = None  # None = guest mode
+    if "id_token" not in st.session_state:
+        st.session_state.id_token = None  # Firebase auth token
     if "user_name" not in st.session_state:
         st.session_state.user_name = "Guest"
     if "show_login_modal" not in st.session_state:
@@ -361,11 +369,12 @@ def show_login_modal():
                     result = sign_in(login_email, login_password)
                     if result["success"]:
                         st.session_state.user_id = result["user_id"]
-                        user_data = get_user_data(result["user_id"])
+                        st.session_state.id_token = result["id_token"]
+                        user_data = get_user_data(result["user_id"], token=result["id_token"])
                         if user_data:
                             st.session_state.user_name = user_data.get("name", "Student")
                         if "cookie_manager" in st.session_state:
-                            save_login_cookie(st.session_state.cookie_manager, result["user_id"])
+                            save_login_cookie(st.session_state.cookie_manager, result["user_id"], result["id_token"])
                         st.session_state.show_login_modal = False
                         st.rerun()
                     else:
@@ -390,9 +399,10 @@ def show_login_modal():
                     result = sign_up(signup_email, signup_password, signup_name)
                     if result["success"]:
                         st.session_state.user_id = result["user_id"]
+                        st.session_state.id_token = result["id_token"]
                         st.session_state.user_name = signup_name
                         if "cookie_manager" in st.session_state:
-                            save_login_cookie(st.session_state.cookie_manager, result["user_id"])
+                            save_login_cookie(st.session_state.cookie_manager, result["user_id"], result["id_token"])
                         st.session_state.show_login_modal = False
                         st.rerun()
                     else:
@@ -408,8 +418,8 @@ def show_login_modal():
 def show_header_with_fish():
     """Display header with fish count for logged-in users."""
     user_data = None
-    if st.session_state.user_id:
-        user_data = get_user_data(st.session_state.user_id)
+    if st.session_state.user_id and st.session_state.id_token:
+        user_data = get_user_data(st.session_state.user_id, token=st.session_state.id_token)
 
     header_col1, header_col2, header_col3, header_col4 = st.columns([5, 1, 2, 1])
 
@@ -634,11 +644,11 @@ def show_practice_page():
                             st.session_state.awaiting_explanation = True
                             st.session_state.correct_questions.add(st.session_state.current_question_idx)
 
-                            # Award coins if user is logged in and hasn't been rewarded for this question
+                            # Award fish if user is logged in and hasn't been rewarded for this question
                             question_key = f"{st.session_state.current_question_idx}_{current_q.number}"
-                            if st.session_state.user_id and question_key not in st.session_state.rewarded_questions:
-                                update_currency(st.session_state.user_id, 5)
-                                increment_solved_questions(st.session_state.user_id)
+                            if st.session_state.user_id and st.session_state.id_token and question_key not in st.session_state.rewarded_questions:
+                                update_currency(st.session_state.user_id, 5, token=st.session_state.id_token)
+                                increment_solved_questions(st.session_state.user_id, token=st.session_state.id_token)
                                 st.session_state.rewarded_questions.add(question_key)
                                 st.toast("🐟 +5 fish!")
                 st.rerun()
@@ -671,11 +681,11 @@ def show_practice_page():
                             st.session_state.awaiting_explanation = True
                             st.session_state.correct_questions.add(st.session_state.current_question_idx)
 
-                            # Award coins
+                            # Award fish
                             question_key = f"{st.session_state.current_question_idx}_{current_q.number}"
-                            if st.session_state.user_id and question_key not in st.session_state.rewarded_questions:
-                                update_currency(st.session_state.user_id, 5)
-                                increment_solved_questions(st.session_state.user_id)
+                            if st.session_state.user_id and st.session_state.id_token and question_key not in st.session_state.rewarded_questions:
+                                update_currency(st.session_state.user_id, 5, token=st.session_state.id_token)
+                                increment_solved_questions(st.session_state.user_id, token=st.session_state.id_token)
                                 st.session_state.rewarded_questions.add(question_key)
                                 st.toast("🐟 +5 fish!")
                     st.rerun()
@@ -758,11 +768,11 @@ def show_shop_page():
     """Display the shop page where users can buy accessories."""
     st.subheader("🛒 Accessory Shop")
 
-    if st.session_state.user_id is None:
+    if st.session_state.user_id is None or st.session_state.id_token is None:
         st.warning("Please sign in to use the shop! Guest mode doesn't save progress.")
         return
 
-    user_data = get_user_data(st.session_state.user_id)
+    user_data = get_user_data(st.session_state.user_id, token=st.session_state.id_token)
     if not user_data:
         st.error("Could not load user data.")
         return
@@ -800,7 +810,7 @@ def show_shop_page():
                     st.button("✓ Owned", key=f"buy_{item_id}", disabled=True, use_container_width=True)
                 else:
                     if st.button(f"Buy", key=f"buy_{item_id}", use_container_width=True):
-                        result = purchase_item(st.session_state.user_id, item_id, item['price'])
+                        result = purchase_item(st.session_state.user_id, item_id, item['price'], token=st.session_state.id_token)
                         if result["success"]:
                             st.success(result["message"])
                             st.rerun()
@@ -814,11 +824,11 @@ def show_owl_page():
     """Display the owl customization page."""
     st.subheader("🦉 My Owl")
 
-    if st.session_state.user_id is None:
+    if st.session_state.user_id is None or st.session_state.id_token is None:
         st.warning("Please sign in to customize your owl! Guest mode doesn't save progress.")
         return
 
-    user_data = get_user_data(st.session_state.user_id)
+    user_data = get_user_data(st.session_state.user_id, token=st.session_state.id_token)
     if not user_data:
         st.error("Could not load user data.")
         return
@@ -864,11 +874,11 @@ def show_owl_page():
                         with col_b:
                             if is_equipped:
                                 if st.button("Remove", key=f"unequip_{item_id}"):
-                                    unequip_item(st.session_state.user_id, slot)
+                                    unequip_item(st.session_state.user_id, slot, token=st.session_state.id_token)
                                     st.rerun()
                             else:
                                 if st.button("Equip", key=f"equip_{item_id}"):
-                                    equip_item(st.session_state.user_id, item_id, slot)
+                                    equip_item(st.session_state.user_id, item_id, slot, token=st.session_state.id_token)
                                     st.rerun()
 
 
@@ -876,15 +886,15 @@ def show_profile_page():
     """Display the user profile page."""
     st.subheader("👤 My Profile")
 
-    if st.session_state.user_id is None:
+    if st.session_state.user_id is None or st.session_state.id_token is None:
         st.warning("You're in guest mode. Sign in to save your progress!")
 
         if st.button("Sign In / Create Account"):
-            st.session_state.logged_in = False
+            st.session_state.show_login_modal = True
             st.rerun()
         return
 
-    user_data = get_user_data(st.session_state.user_id)
+    user_data = get_user_data(st.session_state.user_id, token=st.session_state.id_token)
     if not user_data:
         st.error("Could not load user data.")
         return
