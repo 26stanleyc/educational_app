@@ -7,6 +7,7 @@ import streamlit as st
 import asyncio
 import re
 import json
+import base64
 from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -834,6 +835,38 @@ def show_shop_page():
         st.divider()
 
 
+def get_owl_base64():
+    """Get owl image as base64 string for embedding in HTML."""
+    with open("mathowl.png", "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+
+def render_owl_with_accessories(equipped: dict) -> str:
+    """Generate HTML for owl with positioned accessory emojis."""
+    owl_base64 = get_owl_base64()
+
+    # Get emoji for each equipped slot
+    head_emoji = get_accessory(equipped.get("head", "")).get("emoji", "") if equipped.get("head") else ""
+    eyes_emoji = get_accessory(equipped.get("eyes", "")).get("emoji", "") if equipped.get("eyes") else ""
+    neck_emoji = get_accessory(equipped.get("neck", "")).get("emoji", "") if equipped.get("neck") else ""
+    back_emoji = get_accessory(equipped.get("back", "")).get("emoji", "") if equipped.get("back") else ""
+
+    html = f"""
+    <div style="position: relative; width: 250px; height: 280px;">
+        <img src="data:image/png;base64,{owl_base64}" style="width: 250px;">
+        <!-- Head accessory - above head -->
+        <div style="position: absolute; top: -10px; left: 105px; font-size: 40px;">{head_emoji}</div>
+        <!-- Eyes accessory - over eyes -->
+        <div style="position: absolute; top: 80px; left: 95px; font-size: 35px;">{eyes_emoji}</div>
+        <!-- Neck accessory - on neck/chest -->
+        <div style="position: absolute; top: 150px; left: 105px; font-size: 35px;">{neck_emoji}</div>
+        <!-- Back accessory - behind/side -->
+        <div style="position: absolute; top: 60px; left: 180px; font-size: 35px;">{back_emoji}</div>
+    </div>
+    """
+    return html
+
+
 def show_owl_page():
     """Display the owl customization page."""
     st.subheader("🦉 My Owl")
@@ -856,7 +889,8 @@ def show_owl_page():
         st.markdown("### Your Owl")
 
         # Display owl with equipped items
-        st.image("mathowl.png", width=250)
+        owl_html = render_owl_with_accessories(equipped)
+        st.markdown(owl_html, unsafe_allow_html=True)
 
         # Show what's equipped
         st.markdown("**Currently Wearing:**")
