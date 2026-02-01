@@ -174,7 +174,10 @@ def check_saved_login(cookie_manager):
             pass
 
         # Token expired or invalid, clear cookie
-        cookie_manager.delete("math_stan_session")
+        try:
+            cookie_manager.delete("math_stan_session")
+        except KeyError:
+            pass
         st.session_state.user_id = None
         st.session_state.id_token = None
         st.session_state.user_name = "Guest"
@@ -189,7 +192,10 @@ def save_login_cookie(cookie_manager, user_id: str, id_token: str):
 
 def clear_login_cookie(cookie_manager):
     """Clear the login cookie on sign out."""
-    cookie_manager.delete("math_stan_session")
+    try:
+        cookie_manager.delete("math_stan_session")
+    except KeyError:
+        pass  # Cookie doesn't exist, nothing to delete
 
 
 def init_session_state():
