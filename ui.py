@@ -488,7 +488,7 @@ def show_practice_page():
         st.header("📚 Questions")
 
         # Upload PDF or Image
-        st.subheader("Upload Exam")
+        st.subheader("Upload Worksheet")
         uploaded_file = st.file_uploader(
             "Upload a PDF or image",
             type=["pdf", "png", "jpg", "jpeg"],
@@ -941,13 +941,12 @@ def show_owl_page():
     with col1:
         st.markdown("### Your Owl")
 
-        # Add spacing to move owl down
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # Display owl with equipped items
+        # Display owl with equipped items - moved down and centered
         owl_base64 = get_owl_image_base64(equipped)
         st.markdown(
-            f'<img src="data:image/png;base64,{owl_base64}" style="max-width: 250px;">',
+            f'<div style="display: flex; justify-content: center; margin-top: 125px;">'
+            f'<img src="data:image/png;base64,{owl_base64}" style="max-width: 250px;">'
+            f'</div>',
             unsafe_allow_html=True
         )
 
