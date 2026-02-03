@@ -841,25 +841,44 @@ def show_shop_page():
 # Accessory position offsets (x, y) relative to owl image
 # These will need adjustment based on your accessory images
 ACCESSORY_POSITIONS = {
-    # Head items - positioned above/on the owl's head
-    "grad_cap": (65, -20),
-    "crown": (75, -15),
-    "wizard_hat": (60, -30),
-    "party_hat": (85, -25),
-    "detective_hat": (65, -10),
-    # Eye items - positioned over the eyes
-    "sunglasses": (55, 70),
-    "nerdy_glasses": (55, 70),
-    "star_glasses": (55, 65),
-    # Neck items - positioned on chest/neck
-    "bow_tie": (95, 160),
-    "scarf": (60, 140),
-    "medal": (90, 155),
-    # Back items - positioned behind/beside the owl
-    "cape": (-20, 80),
-    "wings": (-30, 50),
-    "backpack": (180, 100),
+    # Head items - on top of owl's head
+    "grad_cap": (120, -200),
+    "crown": (130, -200),
+    "wizard_hat": (120, -250),
+    "party_hat": (120, -300),
+    "detective_hat": (120, -250),
+    # Eye items - over the eyes (eyes at ~y=170)
+    "sunglasses": (170, 80),
+    "nerdy_glasses": (90, 50),
+    "star_glasses": (180, 90),
+    # Neck items - below beak (beak at ~y=280)
+    "red_bow_tie": (0, 0),
+    "scarf": (-65, 150),
+    "gold_medal": (140, 330),
+    # Back items - behind/beside owl
+    "wings": (-370, -500),
 }
+
+# Scale factors for accessories (1.0 = original size, 2.0 = double size)
+ACCESSORY_SCALES = {
+    "detective_hat": 2.0,
+    "sunglasses": 1.5,
+    "nerdy_glasses": 2.5,
+    "star_glasses": 1.2,
+    "red_bow_tie": 1.5,
+    "scarf": 6,
+    "wings": 10,
+    
+}
+
+# White rectangles behind accessories to cover owl features (x_offset, y_offset, width, height)
+# Offsets are relative to the accessory position
+ACCESSORY_BACKGROUNDS = {
+    "star_glasses": (30, 50, 300, 120),  # Adjust these values as needed
+}
+
+# Accessories that should render BEHIND the owl (owl on top)
+ACCESSORIES_BEHIND_OWL = {"wings"}
 
 
 def render_owl_with_accessories(equipped: dict) -> Image.Image:
@@ -868,58 +887,68 @@ def render_owl_with_accessories(equipped: dict) -> Image.Image:
     owl = Image.open("mathowl.png").convert("RGBA")
 
     # Create a larger canvas to allow accessories to extend beyond owl bounds
-    canvas_size = (owl.width + 100, owl.height + 100)
+    canvas_size = (owl.width + 700, owl.height + 300)  # Extra width for wings, height for hats
     canvas = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
 
-    # Offset to center owl on canvas
-    owl_offset = (50, 50)
+    # Offset to center owl on canvas (more space on sides for wings, top for hats)
+    owl_offset = (350, 250)
+
+    def paste_accessory(item_id):
+        """Helper to paste an accessory onto the canvas."""
+        accessory_path = f"accessories/{item_id}.png"
+        if os.path.exists(accessory_path):
+            accessory = Image.open(accessory_path).convert("RGBA")
+
+            # Apply scale if defined
+            scale = ACCESSORY_SCALES.get(item_id, 1.0)
+            if scale != 1.0:
+                new_size = (int(accessory.width * scale), int(accessory.height * scale))
+                accessory = accessory.resize(new_size, Image.LANCZOS)
+
+            # Get position offset for this accessory
+            pos = ACCESSORY_POSITIONS.get(item_id, (0, 0))
+            # Apply offset relative to owl position on canvas
+            final_pos = (owl_offset[0] + pos[0], owl_offset[1] + pos[1])
+
+            # Draw white background rectangle if defined (to cover owl eyes, etc.)
+            bg = ACCESSORY_BACKGROUNDS.get(item_id)
+            if bg:
+                from PIL import ImageDraw
+                draw = ImageDraw.Draw(canvas)
+                x_off, y_off, w, h = bg
+                rect_pos = (final_pos[0] + x_off, final_pos[1] + y_off,
+                            final_pos[0] + x_off + w, final_pos[1] + y_off + h)
+                draw.rectangle(rect_pos, fill=(255, 255, 255, 255))
+
+            # Paste accessory with transparency
+            canvas.paste(accessory, final_pos, accessory)
+
+    # First, paste accessories that go BEHIND the owl
+    for item_id in equipped.values():
+        if item_id and item_id in ACCESSORIES_BEHIND_OWL:
+            paste_accessory(item_id)
+
+    # Paste the owl
     canvas.paste(owl, owl_offset, owl)
 
-    # Layer accessories in order: back items first, then others
+    # Layer remaining accessories in order: back items first, then others
     layer_order = ["back", "neck", "eyes", "head"]
 
     for slot in layer_order:
         item_id = equipped.get(slot)
-        if item_id:
-            accessory_path = f"accessories/{item_id}.png"
-            if os.path.exists(accessory_path):
-                accessory = Image.open(accessory_path).convert("RGBA")
-
-                # Get position offset for this accessory
-                pos = ACCESSORY_POSITIONS.get(item_id, (0, 0))
-                # Apply offset relative to owl position on canvas
-                final_pos = (owl_offset[0] + pos[0], owl_offset[1] + pos[1])
-
-                # Paste accessory with transparency
-                canvas.paste(accessory, final_pos, accessory)
-
-    # Crop canvas to remove excess transparent area
-    bbox = canvas.getbbox()
-    if bbox:
-        canvas = canvas.crop(bbox)
+        if item_id and item_id not in ACCESSORIES_BEHIND_OWL:
+            paste_accessory(item_id)
 
     return canvas
 
 
 def get_owl_image_base64(equipped: dict) -> str:
     """Get the composited owl image as base64 for display."""
-    # Check if any accessory images exist
-    has_accessory_images = any(
-        os.path.exists(f"accessories/{item_id}.png")
-        for item_id in equipped.values()
-        if item_id
-    )
-
-    if has_accessory_images:
-        # Use Pillow compositing
-        img = render_owl_with_accessories(equipped)
-        buffer = BytesIO()
-        img.save(buffer, format="PNG")
-        return base64.b64encode(buffer.getvalue()).decode()
-    else:
-        # Fall back to plain owl image
-        with open("mathowl.png", "rb") as f:
-            return base64.b64encode(f.read()).decode()
+    # Always use canvas rendering for consistent image dimensions
+    img = render_owl_with_accessories(equipped)
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode()
 
 
 def show_owl_page():
@@ -941,14 +970,24 @@ def show_owl_page():
     with col1:
         st.markdown("### Your Owl")
 
-        # Display owl with equipped items - moved down and centered
+        # Display owl with equipped items - centered
         owl_base64 = get_owl_image_base64(equipped)
         st.markdown(
-            f'<div style="display: flex; justify-content: center; margin-top: 125px;">'
-            f'<img src="data:image/png;base64,{owl_base64}" style="max-width: 250px;">'
+            f'<div style="display: flex; justify-content: center; margin-top: 0px;">'
+            f'<img src="data:image/png;base64,{owl_base64}" style="max-width: 450px;">'
             f'</div>',
             unsafe_allow_html=True
         )
+
+        # Show what's equipped
+        st.markdown("**Currently Wearing:**")
+        for slot in SLOTS:
+            item_id = equipped.get(slot)
+            if item_id:
+                item = get_accessory(item_id)
+                st.markdown(f"- **{slot.title()}:** {item.get('emoji', '')} {item.get('name', item_id)}")
+            else:
+                st.markdown(f"- **{slot.title()}:** *(empty)*")
 
     with col2:
         st.markdown("### Your Inventory")
@@ -977,17 +1016,6 @@ def show_owl_page():
                                     equip_item(st.session_state.user_id, item_id, slot, token=st.session_state.id_token)
                                     st.rerun()
 
-        st.divider()
-
-        # Show what's equipped
-        st.markdown("**Currently Wearing:**")
-        for slot in SLOTS:
-            item_id = equipped.get(slot)
-            if item_id:
-                item = get_accessory(item_id)
-                st.markdown(f"- **{slot.title()}:** {item.get('emoji', '')} {item.get('name', item_id)}")
-            else:
-                st.markdown(f"- **{slot.title()}:** *(empty)*")
 
 
 def show_profile_page():
