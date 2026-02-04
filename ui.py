@@ -240,6 +240,14 @@ def init_session_state():
     if "rewarded_questions" not in st.session_state:
         st.session_state.rewarded_questions = set()
 
+    # Guest mode session-based data (doesn't persist)
+    if "guest_currency" not in st.session_state:
+        st.session_state.guest_currency = 0
+    if "guest_inventory" not in st.session_state:
+        st.session_state.guest_inventory = []
+    if "guest_equipped" not in st.session_state:
+        st.session_state.guest_equipped = {}
+
     # Current page/tab
     if "current_tab" not in st.session_state:
         st.session_state.current_tab = "Practice"
@@ -435,8 +443,14 @@ def show_login_modal():
 def show_header_with_fish():
     """Display header with fish count for logged-in users."""
     user_data = None
+    fish = 0
     if st.session_state.user_id and st.session_state.id_token:
         user_data = get_user_data(st.session_state.user_id, token=st.session_state.id_token)
+        if user_data:
+            fish = user_data.get("currency", 0)
+    else:
+        # Guest mode - use session-based currency
+        fish = st.session_state.guest_currency
 
     header_col1, header_col2, header_col3, header_col4 = st.columns([5, 1, 2, 1])
 
@@ -452,14 +466,13 @@ Here's how you use it in 5 simple steps:
 5. Spend your fish in the Shop to buy owl accessories""")
 
     with header_col2:
-        if user_data:
-            fish = user_data.get("currency", 0)
-            st.markdown(f"""
-            <div style="background-color: #87CEEB; padding: 8px 12px; border-radius: 20px;
-                        text-align: center; margin-top: 15px; color: #000; white-space: nowrap;">
-                <strong>🐟 {fish}</strong>
-            </div>
-            """, unsafe_allow_html=True)
+        # Show fish for both logged-in users and guests
+        st.markdown(f"""
+        <div style="background-color: #87CEEB; padding: 8px 12px; border-radius: 20px;
+                    text-align: center; margin-top: 15px; color: #000; white-space: nowrap;">
+            <strong>🐟 {fish}</strong>
+        </div>
+        """, unsafe_allow_html=True)
 
     with header_col3:
         st.image("mathowl.png", width=160)
@@ -662,11 +675,16 @@ def show_practice_page():
                             st.session_state.awaiting_explanation = True
                             st.session_state.correct_questions.add(st.session_state.current_question_idx)
 
-                            # Award fish if user is logged in and hasn't been rewarded for this question
+                            # Award fish (works for both logged-in users and guests)
                             question_key = f"{st.session_state.current_question_idx}_{current_q.number}"
-                            if st.session_state.user_id and st.session_state.id_token and question_key not in st.session_state.rewarded_questions:
-                                update_currency(st.session_state.user_id, 5, token=st.session_state.id_token)
-                                increment_solved_questions(st.session_state.user_id, token=st.session_state.id_token)
+                            if question_key not in st.session_state.rewarded_questions:
+                                if st.session_state.user_id and st.session_state.id_token:
+                                    # Logged-in user - save to Firebase
+                                    update_currency(st.session_state.user_id, 5, token=st.session_state.id_token)
+                                    increment_solved_questions(st.session_state.user_id, token=st.session_state.id_token)
+                                else:
+                                    # Guest mode - session-based currency
+                                    st.session_state.guest_currency += 5
                                 st.session_state.rewarded_questions.add(question_key)
                                 st.toast("🐟 +5 fish!")
                 st.rerun()
@@ -699,11 +717,16 @@ def show_practice_page():
                             st.session_state.awaiting_explanation = True
                             st.session_state.correct_questions.add(st.session_state.current_question_idx)
 
-                            # Award fish
+                            # Award fish (works for both logged-in users and guests)
                             question_key = f"{st.session_state.current_question_idx}_{current_q.number}"
-                            if st.session_state.user_id and st.session_state.id_token and question_key not in st.session_state.rewarded_questions:
-                                update_currency(st.session_state.user_id, 5, token=st.session_state.id_token)
-                                increment_solved_questions(st.session_state.user_id, token=st.session_state.id_token)
+                            if question_key not in st.session_state.rewarded_questions:
+                                if st.session_state.user_id and st.session_state.id_token:
+                                    # Logged-in user - save to Firebase
+                                    update_currency(st.session_state.user_id, 5, token=st.session_state.id_token)
+                                    increment_solved_questions(st.session_state.user_id, token=st.session_state.id_token)
+                                else:
+                                    # Guest mode - session-based currency
+                                    st.session_state.guest_currency += 5
                                 st.session_state.rewarded_questions.add(question_key)
                                 st.toast("🐟 +5 fish!")
                     st.rerun()
@@ -786,17 +809,19 @@ def show_shop_page():
     """Display the shop page where users can buy accessories."""
     st.subheader("🛒 Accessory Shop")
 
-    if st.session_state.user_id is None or st.session_state.id_token is None:
-        st.warning("Please sign in to use the shop! Guest mode doesn't save progress.")
-        return
+    is_guest = st.session_state.user_id is None or st.session_state.id_token is None
 
-    user_data = get_user_data(st.session_state.user_id, token=st.session_state.id_token)
-    if not user_data:
-        st.error("Could not load user data.")
-        return
-
-    fish = user_data.get("currency", 0)
-    inventory = user_data.get("inventory", [])
+    if is_guest:
+        st.warning("Guest mode doesn't save progress. Sign in to keep your purchases!")
+        fish = st.session_state.guest_currency
+        inventory = st.session_state.guest_inventory
+    else:
+        user_data = get_user_data(st.session_state.user_id, token=st.session_state.id_token)
+        if not user_data:
+            st.error("Could not load user data.")
+            return
+        fish = user_data.get("currency", 0)
+        inventory = user_data.get("inventory", [])
 
     st.markdown(f"### 🐟 Your Fish: **{fish}**")
     st.markdown("Buy accessories to customize your owl!")
@@ -828,12 +853,22 @@ def show_shop_page():
                     st.button("✓ Owned", key=f"buy_{item_id}", disabled=True, use_container_width=True)
                 else:
                     if st.button(f"Buy", key=f"buy_{item_id}", use_container_width=True):
-                        result = purchase_item(st.session_state.user_id, item_id, item['price'], token=st.session_state.id_token)
-                        if result["success"]:
-                            st.success(result["message"])
-                            st.rerun()
+                        if is_guest:
+                            # Guest mode - session-based purchase
+                            if st.session_state.guest_currency >= item['price']:
+                                st.session_state.guest_currency -= item['price']
+                                st.session_state.guest_inventory.append(item_id)
+                                st.success(f"Purchased {item['name']}!")
+                                st.rerun()
+                            else:
+                                st.error("Not enough fish!")
                         else:
-                            st.error(result["message"])
+                            result = purchase_item(st.session_state.user_id, item_id, item['price'], token=st.session_state.id_token)
+                            if result["success"]:
+                                st.success(result["message"])
+                                st.rerun()
+                            else:
+                                st.error(result["message"])
 
         st.divider()
 
@@ -953,17 +988,19 @@ def get_owl_image_base64(equipped: dict) -> str:
 
 def show_owl_page():
     """Display the owl customization page."""
-    if st.session_state.user_id is None or st.session_state.id_token is None:
-        st.warning("Please sign in to customize your owl! Guest mode doesn't save progress.")
-        return
+    is_guest = st.session_state.user_id is None or st.session_state.id_token is None
 
-    user_data = get_user_data(st.session_state.user_id, token=st.session_state.id_token)
-    if not user_data:
-        st.error("Could not load user data.")
-        return
-
-    inventory = user_data.get("inventory", [])
-    equipped = user_data.get("equipped", {})
+    if is_guest:
+        st.warning("Guest mode doesn't save progress. Sign in to keep your owl's style!")
+        inventory = st.session_state.guest_inventory
+        equipped = st.session_state.guest_equipped
+    else:
+        user_data = get_user_data(st.session_state.user_id, token=st.session_state.id_token)
+        if not user_data:
+            st.error("Could not load user data.")
+            return
+        inventory = user_data.get("inventory", [])
+        equipped = user_data.get("equipped", {})
 
     col1, col2 = st.columns([1, 1])
 
@@ -1009,11 +1046,20 @@ def show_owl_page():
                         with col_b:
                             if is_equipped:
                                 if st.button("Remove", key=f"unequip_{item_id}"):
-                                    unequip_item(st.session_state.user_id, slot, token=st.session_state.id_token)
+                                    if is_guest:
+                                        # Guest mode - session-based unequip
+                                        if slot in st.session_state.guest_equipped:
+                                            del st.session_state.guest_equipped[slot]
+                                    else:
+                                        unequip_item(st.session_state.user_id, slot, token=st.session_state.id_token)
                                     st.rerun()
                             else:
                                 if st.button("Equip", key=f"equip_{item_id}"):
-                                    equip_item(st.session_state.user_id, item_id, slot, token=st.session_state.id_token)
+                                    if is_guest:
+                                        # Guest mode - session-based equip
+                                        st.session_state.guest_equipped[slot] = item_id
+                                    else:
+                                        equip_item(st.session_state.user_id, item_id, slot, token=st.session_state.id_token)
                                     st.rerun()
 
 
